@@ -36,6 +36,7 @@ type Service interface {
 	Ping(ctx context.Context, req api.PingRequest) (resp api.PingResponse)
 	Signup(ctx context.Context, req api.SignupRequest) (resp api.SignupResponse)
 	Login(ctx context.Context, req api.LoginRequest) (resp api.LoginResponse)
+	CreateList(ctx context.Context, req api.CreateListRequest) (resp api.CreateListResponse)
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
@@ -73,7 +74,7 @@ func (s basicService) Signup(ctx context.Context, req api.SignupRequest) (resp a
 	//store the user in DB
 	err = processSingupRequest(ctx, s.db, &req)
 	if err != nil {
-		resp.Err = errors.Wrap(err, "signup service failed")
+		resp.Err = errors.Wrap(err, "failed to process signup service")
 		return
 	}
 	logger.Log("successfully_create_user :", req.UserName)
@@ -89,10 +90,25 @@ func (s basicService) Login(ctx context.Context, req api.LoginRequest) (resp api
 	}
 	st, err := processLoginRequest(ctx, s.db, &req)
 	if err != nil {
-		resp.Err = errors.Wrap(err, "login service failed")
+		resp.Err = errors.Wrap(err, "failed to prcoess login service")
 		return
 	}
 	resp.SessionToke = st
 	logger.Log("successfully_logged_in_for_user :", req.UserName)
+	return
+}
+
+func (s basicService) CreateList(ctx context.Context, req api.CreateListRequest) (resp api.CreateListResponse) {
+	logger := log.With(s.logger, "method", "CreateListService")
+	err := validateCreateListRequest(&req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "request validation failed for create list service")
+		return
+	}
+	err = processCreateListRequest(ctx, s.db, &req)
+	if err != nil {
+		resp.Err = errors.Wrap(err, "failed to process create list service")
+	}
+	logger.Log("successfully_created_list", req.Name)
 	return
 }

@@ -54,3 +54,14 @@ func (mw loggingMiddleware) Login(ctx context.Context, req api.LoginRequest) (re
 	}()
 	return mw.next.Login(ctx, req)
 }
+
+func (mw loggingMiddleware) CreateList(ctx context.Context, req api.CreateListRequest) (resp api.CreateListResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "CreateList", "req", req, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input CreateList req :", req, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.CreateList(ctx, req)
+}

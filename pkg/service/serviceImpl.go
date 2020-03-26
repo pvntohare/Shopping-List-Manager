@@ -57,10 +57,19 @@ func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest)
 	sessionToken := uuid.New().String()
 	// Set the token in the cache, along with the user whom it represents
 	// The token has an expiry time of 120 seconds
-	_, err = api.Cache.Do("SETEX", sessionToken, "120", req.UserName)
+	_, err = api.Cache.Do("SETEX", sessionToken, "120", user.UserID)
 	if err != nil {
 		// If there is an error in setting the cache, return an internal server error
 		return "", errors.Wrapf(err, "failed to set the session for username %v", req.UserName)
 	}
 	return sessionToken, nil
+}
+
+func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateListRequest) error {
+	_, err := db.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",
+		req.Name, req.Description, req.Owner, time.Now(), time.Now(), time.Now().AddDate(1,0,0), req.Status)
+	if err != nil {
+		return errors.Wrap(err, "failed to insert new list in DB")
+	}
+	return nil
 }

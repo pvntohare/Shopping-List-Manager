@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"shoppinglist/pkg/api"
 	"shoppinglist/pkg/endpoint"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -77,6 +78,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	LoginURL = "/login"
+
+	// swagger:operation POST /list list CreateListRequest
+	//
+	// Creaes a new shopping list for logged in user
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: CreateListRequest
+	//   in: body
+	//   description: request Parameters for create list
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/CreateListRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/CreateListResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	CreateListURL = "/list"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -111,6 +135,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 		encodeResponse,
 	))
 
+	r.Methods("POST").Path(CreateListURL).Handler(httptransport.NewServer(
+		endpoints.CreateList,
+		decodeHTTPCreateListRequest,
+		encodeResponse,
+	))
+
 	return r
 }
 
@@ -121,7 +151,7 @@ func decodeHTTPPingRequest(_ context.Context, r *http.Request) (interface{}, err
 }
 
 // decodeHTTPSignupRequest is a transport/http.DecodeRequestFunc that decodes a
-// JSON-encoded index request from the HTTP request body. Primarily useful in a
+// JSON-encoded signup request from the HTTP request body. Primarily useful in a
 // server.
 func decodeHTTPSignupRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	var req api.SignupRequest
@@ -133,13 +163,49 @@ func decodeHTTPSignupRequest(ctx context.Context, r *http.Request) (interface{},
 }
 
 // decodeHTTPLoginRequest is a transport/http.DecodeRequestFunc that decodes a
-// JSON-encoded index request from the HTTP request body. Primarily useful in a
+// JSON-encoded login request from the HTTP request body. Primarily useful in a
 // server.
 func decodeHTTPLoginRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	var req api.LoginRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		return nil, err
+	}
+	return req, nil
+}
+
+// decodeHTTPCreateListRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded create list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPCreateListRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.CreateListRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, err
+	}
+	// obtain the session token from the requests cookies
+	c, err := r.Cookie("session_token")
+	if err != nil {
+		if err == http.ErrNoCookie {
+			// If the cookie is not set, return an unauthorized status
+			return nil, errors.New("unauthorised access")
+		}
+		// For any other type of error, return a bad request status
+		return nil, errors.New("internal server error")
+	}
+	sessionToken := c.Value
+	// get the user id from cache
+	response, err := api.Cache.Do("GET", sessionToken)
+	if err != nil {
+		return nil, errors.New("failed to read user id from cache")
+	}
+	if response == nil {
+		return nil, errors.New("unauthorised access")
+	}
+	userid := string(response.([]byte))
+	req.Owner, err = strconv.Atoi(userid)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
 	}
 	return req, nil
 }

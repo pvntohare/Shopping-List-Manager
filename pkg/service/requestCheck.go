@@ -9,3 +9,7 @@ func validateSignupRequest(req *api.SignupRequest) error {
 func validateLoginRequest(req *api.LoginRequest) error {
 	return nil
 }
+
+func validateCreateListRequest(req *api.CreateListRequest) error {
+	return nil
+}

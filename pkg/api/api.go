@@ -53,3 +53,22 @@ type LoginResponse struct {
 	SessionToke string
 	Err         error `json:"error,omitempty"`
 }
+
+// CreateListRequest is request schema for creating new list
+// It will create a shopping list for current user
+// swagger:model
+type CreateListRequest struct {
+	Name             string    `json:"name"`
+	Description      string    `json:"description"`
+	Owner            int       `json:"owner"`
+	Created_at       time.Time `json:"created_at"`
+	Last_modified_at time.Time `json:"last_modified_at"`
+	Deadline         time.Time `json:"deadline"`
+	Status           string    `json:"status"`
+}
+
+// CreateListResponse represents the response struct returned by POST listAPI
+// swagger:response CreateListResponse
+type CreateListResponse struct {
+	Err error `json:"error,omitempty"`
+}
