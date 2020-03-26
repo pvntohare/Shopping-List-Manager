@@ -16,6 +16,20 @@ import (
 
 // Api resource locators
 const (
+	// swagger:operation GET /ping ping PingReq
+	//
+	// Api for checking status of the service
+	//
+	// ---
+	// produces:
+	// - application/json
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/PingRes"
+	//   "500":
+	//     description: StatusInternalServerError
+	PingURL = "/ping"
+
 	// swagger:operation POST /signup singup SingupRequest
 	//
 	// Enrolls a new user in the system
@@ -61,20 +75,6 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	LoginURL = "/login"
-
-	// swagger:operation GET /healthz healthz HealthzReq
-	//
-	// Api for checking status of the service
-	//
-	// ---
-	// produces:
-	// - application/json
-	// responses:
-	//   "200":
-	//     "$ref": "#/responses/HealthzRes"
-	//   "500":
-	//     description: StatusInternalServerError
-	HealthzURL = "/healthz"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -91,6 +91,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r := mux.NewRouter()
 	r.Use(commonHTTPMiddleware)
 
+	r.Methods("GET").Path(PingURL).Handler(httptransport.NewServer(
+		endpoints.Ping,
+		decodeHTTPPingRequest,
+		encodeResponse,
+	))
+
 	r.Methods("POST").Path(SignupURL).Handler(httptransport.NewServer(
 		endpoints.Signup,
 		decodeHTTPSignupRequest,
@@ -104,6 +110,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	))
 
 	return r
+}
+
+func decodeHTTPPingRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var req api.PingRequest
+	//err := json.NewDecoder(r.Body).Decode(&req)
+	return req, nil
 }
 
 // decodeHTTPSignupRequest is a transport/http.DecodeRequestFunc that decodes a
@@ -134,12 +146,6 @@ func getErrorInfo(err error) (int, string, string) {
 	httpStatus := http.StatusInternalServerError
 	msg := (errors.Cause(err)).Error()
 	trace := fmt.Sprintf("%+v", err)
-	/*	if t, ok := cause.(stackTracer); ok {
-			fmt.Sprintf("error = %v", cause)
-			st := t.StackTrace()
-			trace = fmt.Sprintf("%+v", st)
-		}
-	*/
 	return httpStatus, msg, trace
 
 }
@@ -163,5 +169,13 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		errorEncoder(ctx, f.Failed(), w)
 		return nil
 	}
-	return json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	switch response.(type) {
+	case api.PingResponse:
+		p := []byte("pong")
+		_, err := w.Write(p)
+		return err
+	default:
+		return json.NewEncoder(w).Encode(response)
+	}
 }

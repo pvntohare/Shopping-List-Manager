@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"github.com/go-kit/kit/log"
+	"github.com/pkg/errors"
 	"shoppinglist/pkg/api"
 )
 
@@ -20,6 +21,16 @@ func LoggingMiddleware(logger log.Logger) Middleware {
 type loggingMiddleware struct {
 	logger log.Logger
 	next   Service
+}
+
+func (mw loggingMiddleware) Ping(ctx context.Context, req api.PingRequest) (resp api.PingResponse) {
+	defer func() {
+		if resp.Err != nil {
+			err1 := errors.Wrap(resp.Err, "failure in ping request")
+			mw.logger.Log("ping_failed", err1)
+		}
+	}()
+	return mw.next.Ping(ctx, req)
 }
 
 func (mw loggingMiddleware) Signup(ctx context.Context, req api.SignupRequest) (resp api.SignupResponse) {

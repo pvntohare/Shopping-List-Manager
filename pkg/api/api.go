@@ -2,6 +2,21 @@ package api
 
 import "time"
 
+// PingRequest api is used for checking health of the service
+// swagger:model
+type PingRequest struct {
+	//none
+}
+
+// PingResponse is the response of pingAPI
+// swagger:response PingResponse
+type PingResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
+// SignupRequest is request schema for signup request
+// It adds a new user under given username with given user details
+// swagger:model
 type SignupRequest struct {
 	UserID         string    `json:"userid"`
 	UserName       string    `json:"user_name"`
@@ -14,14 +29,22 @@ type SignupRequest struct {
 	Status         string    `json:"status"`
 }
 
+// SignupResponse represents the response struct returned by singupAPI
+// swagger:response SignupResponse
 type SignupResponse struct {
 	Err error `json:"error,omitempty"`
 }
 
+// LoginRequest will authorize a user with given username and password
+// The user with given username should have already been registered
+// swagger:model
 type LoginRequest struct {
 	UserName string `json:"user_name"`
+	Password string `json:"password"`
 }
 
+// LoginResponse represents the response struct returned by loginAPI
+// swagger:response LoginResponse
 type LoginResponse struct {
 	Err error `json:"error,omitempty"`
 }

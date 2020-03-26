@@ -33,6 +33,7 @@ type basicService struct {
 }
 
 type Service interface {
+	Ping(ctx context.Context, req api.PingRequest) (resp api.PingResponse)
 	Signup(ctx context.Context, req api.SignupRequest) (resp api.SignupResponse)
 	Login(ctx context.Context, req api.LoginRequest) (resp api.LoginResponse)
 }
@@ -46,6 +47,10 @@ func New(db *sql.DB, logger log.Logger, configObject *Config, serviceInfo *Info 
 		/*chain other middleware here*/
 	}
 	return svc
+}
+
+func (s basicService) Ping(ctx context.Context, req api.PingRequest) (resp api.PingResponse) {
+	return api.PingResponse{}
 }
 
 func (s basicService) Signup(ctx context.Context, req api.SignupRequest) (resp api.SignupResponse) {
