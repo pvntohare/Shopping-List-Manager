@@ -4,9 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"golang.org/x/crypto/bcrypt"
 	"shoppinglist/pkg/api"
+	"time"
 )
+
+type userLogin struct {
+	UserID   int    `json:"user_id"`
+	UserName string `json:"user_name"`
+	Password string `json:"password"`
+}
 
 func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupRequest) error {
 	query := fmt.Sprintf("SELECT id, username FROM users where username='%v'", req.UserName)
@@ -25,7 +34,33 @@ func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupReques
 	return nil
 }
 
-func processLoginRequest(ctx context.Context, req *api.LoginRequest) error {
-	fmt.Println("user logged in")
-	return nil
+func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest) (sesstionToken string, err error) {
+	var user userLogin
+	// Get the login details of user from DB
+	err = db.QueryRow("SELECT id, username, password FROM users where username = ?", req.UserName).Scan(&user.UserID, &user.UserName, &user.Password)
+	if err != nil {
+		return "", errors.New(fmt.Sprintf("unauthorised access, username %v does not exist", req.UserName))
+	}
+
+	// compare the password
+	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		return "", errors.New("unauthorised access, password does not match ")
+	}
+
+	// update last logged in date of the user
+	_, err = db.Exec("update users set last_logged_in_at=? where id=?", time.Now(), user.UserID)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to update the last logged in date in DB")
+	}
+
+	// Create a new random session token
+	sessionToken := uuid.New().String()
+	// Set the token in the cache, along with the user whom it represents
+	// The token has an expiry time of 120 seconds
+	_, err = api.Cache.Do("SETEX", sessionToken, "120", req.UserName)
+	if err != nil {
+		// If there is an error in setting the cache, return an internal server error
+		return "", errors.Wrapf(err, "failed to set the session for username %v", req.UserName)
+	}
+	return sessionToken, nil
 }

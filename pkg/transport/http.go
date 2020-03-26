@@ -12,6 +12,8 @@ import (
 	"net/http"
 	"shoppinglist/pkg/api"
 	"shoppinglist/pkg/endpoint"
+	"strings"
+	"time"
 )
 
 // Api resource locators
@@ -55,7 +57,7 @@ const (
 
 	// swagger:operation POST /login login LoginRequest
 	//
-	// Logs in a already signed up user
+	// Logs in a registered user
 	//
 	// ---
 	// produces:
@@ -144,6 +146,9 @@ func decodeHTTPLoginRequest(ctx context.Context, r *http.Request) (interface{}, 
 
 func getErrorInfo(err error) (int, string, string) {
 	httpStatus := http.StatusInternalServerError
+	if strings.Contains(err.Error(), "unauthorised access") {
+		httpStatus = http.StatusUnauthorized
+	}
 	msg := (errors.Cause(err)).Error()
 	trace := fmt.Sprintf("%+v", err)
 	return httpStatus, msg, trace
@@ -175,6 +180,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		p := []byte("pong")
 		_, err := w.Write(p)
 		return err
+	case api.LoginResponse:
+		resp := response.(api.LoginResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToke,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToke = ""
+		return json.NewEncoder(w).Encode(struct{}{})
 	default:
 		return json.NewEncoder(w).Encode(response)
 	}

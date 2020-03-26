@@ -42,16 +42,14 @@ func New(s service.Service, logger log.Logger) Endpoints {
 func MakePingEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.PingRequest)
-		response = s.Ping(ctx, req)
-		return
+		return s.Ping(ctx, req), nil
 	}
 }
 
 func MakeSignupEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.SignupRequest)
-		response = s.Signup(ctx, req)
-		return
+		return s.Signup(ctx, req), nil
 	}
 }
 

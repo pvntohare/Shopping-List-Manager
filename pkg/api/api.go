@@ -1,6 +1,11 @@
 package api
 
-import "time"
+import (
+	"github.com/gomodule/redigo/redis"
+	"time"
+)
+
+var Cache redis.Conn
 
 // PingRequest api is used for checking health of the service
 // swagger:model
@@ -18,7 +23,6 @@ type PingResponse struct {
 // It adds a new user under given username with given user details
 // swagger:model
 type SignupRequest struct {
-	UserID         string    `json:"userid"`
 	UserName       string    `json:"user_name"`
 	FullName       string    `json:"full_name"`
 	Email          string    `json:"email"`
@@ -46,5 +50,6 @@ type LoginRequest struct {
 // LoginResponse represents the response struct returned by loginAPI
 // swagger:response LoginResponse
 type LoginResponse struct {
-	Err error `json:"error,omitempty"`
+	SessionToke string
+	Err         error `json:"error,omitempty"`
 }

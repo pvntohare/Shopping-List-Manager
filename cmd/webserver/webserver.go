@@ -7,10 +7,12 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gomodule/redigo/redis"
 	"github.com/spf13/viper"
 	"net/http"
 	"os"
 	"runtime/pprof"
+	"shoppinglist/pkg/api"
 	"shoppinglist/pkg/endpoint"
 	"shoppinglist/pkg/service"
 	"shoppinglist/pkg/transport"
@@ -27,6 +29,16 @@ var (
 func init() {
 	flag.StringVar(&port, "port", "8000", "specify port to run this server on")
 	flag.StringVar(&debugPort, "debug_port", "8080", "specify port to run debug server on")
+}
+
+func initCache() {
+	// Initialize the redis connection to a redis instance running on local machine
+	conn, err := redis.DialURL("redis://localhost")
+	if err != nil {
+		panic(err)
+	}
+	// Assign the connection to the package level `cache` variable
+	api.Cache = conn
 }
 
 func usageFor(short string) func() {
@@ -120,6 +132,7 @@ func main() {
 	flag.Usage = usageFor(os.Args[0] + " [flags]")
 	flag.Parse()
 
+	initCache()
 	// The debug listener mounts the http.DefaultServeMux, and serves up
 	// stuff like the Prometheus metrics route, the Go debug and profiling
 	// routes, and so on.

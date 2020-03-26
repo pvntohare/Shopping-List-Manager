@@ -87,11 +87,12 @@ func (s basicService) Login(ctx context.Context, req api.LoginRequest) (resp api
 		resp.Err = errors.Wrapf(err, "request validation failed for login service")
 		return
 	}
-	err = processLoginRequest(ctx, &req)
+	st, err := processLoginRequest(ctx, s.db, &req)
 	if err != nil {
 		resp.Err = errors.Wrap(err, "login service failed")
 		return
 	}
+	resp.SessionToke = st
 	logger.Log("successfully_logged_in_for_user :", req.UserName)
 	return
 }
