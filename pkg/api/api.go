@@ -50,14 +50,15 @@ type LoginRequest struct {
 // LoginResponse represents the response struct returned by loginAPI
 // swagger:response LoginResponse
 type LoginResponse struct {
-	SessionToke string
-	Err         error `json:"error,omitempty"`
+	SessionToken string
+	Err          error `json:"error,omitempty"`
 }
 
 // CreateListRequest is request schema for creating new list
 // It will create a shopping list for current user
 // swagger:model
 type CreateListRequest struct {
+	SessionToken     string
 	Name             string    `json:"name"`
 	Description      string    `json:"description"`
 	Owner            int       `json:"owner"`
@@ -70,5 +71,6 @@ type CreateListRequest struct {
 // CreateListResponse represents the response struct returned by POST listAPI
 // swagger:response CreateListResponse
 type CreateListResponse struct {
-	Err error `json:"error,omitempty"`
+	SessionToken string
+	Err          error `json:"error,omitempty"`
 }

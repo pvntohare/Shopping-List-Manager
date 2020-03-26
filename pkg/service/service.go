@@ -93,7 +93,7 @@ func (s basicService) Login(ctx context.Context, req api.LoginRequest) (resp api
 		resp.Err = errors.Wrap(err, "failed to prcoess login service")
 		return
 	}
-	resp.SessionToke = st
+	resp.SessionToken = st
 	logger.Log("successfully_logged_in_for_user :", req.UserName)
 	return
 }
@@ -105,10 +105,11 @@ func (s basicService) CreateList(ctx context.Context, req api.CreateListRequest)
 		resp.Err = errors.Wrapf(err, "request validation failed for create list service")
 		return
 	}
-	err = processCreateListRequest(ctx, s.db, &req)
+	st, err := processCreateListRequest(ctx, s.db, &req)
 	if err != nil {
 		resp.Err = errors.Wrap(err, "failed to process create list service")
 	}
-	logger.Log("successfully_created_list", req.Name)
+	resp.SessionToken = st
+	logger.Log("successfully_created_list :", req.Name)
 	return
 }

@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"shoppinglist/pkg/api"
 	"shoppinglist/pkg/endpoint"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -81,7 +80,7 @@ const (
 
 	// swagger:operation POST /list list CreateListRequest
 	//
-	// Creaes a new shopping list for logged in user
+	// Creates a new shopping list for logged in user
 	//
 	// ---
 	// produces:
@@ -183,30 +182,12 @@ func decodeHTTPCreateListRequest(ctx context.Context, r *http.Request) (interfac
 	if err != nil {
 		return nil, err
 	}
-	// obtain the session token from the requests cookies
-	c, err := r.Cookie("session_token")
-	if err != nil {
-		if err == http.ErrNoCookie {
-			// If the cookie is not set, return an unauthorized status
-			return nil, errors.New("unauthorised access")
-		}
-		// For any other type of error, return a bad request status
-		return nil, errors.New("internal server error")
-	}
-	sessionToken := c.Value
-	// get the user id from cache
-	response, err := api.Cache.Do("GET", sessionToken)
-	if err != nil {
-		return nil, errors.New("failed to read user id from cache")
-	}
-	if response == nil {
-		return nil, errors.New("unauthorised access")
-	}
-	userid := string(response.([]byte))
-	req.Owner, err = strconv.Atoi(userid)
+	uc, err := api.GetUserContextFromSession(r)
 	if err != nil {
 		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
 	}
+	req.Owner = uc.UserID
+	req.SessionToken = uc.SessionToken
 	return req, nil
 }
 
@@ -250,10 +231,17 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		resp := response.(api.LoginResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
-			Value:   resp.SessionToke,
+			Value:   resp.SessionToken,
 			Expires: time.Now().Add(120 * time.Second),
 		})
-		resp.SessionToke = ""
+		return json.NewEncoder(w).Encode(struct{}{})
+	case api.CreateListResponse:
+		resp := response.(api.CreateListResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
 		return json.NewEncoder(w).Encode(struct{}{})
 	default:
 		return json.NewEncoder(w).Encode(response)

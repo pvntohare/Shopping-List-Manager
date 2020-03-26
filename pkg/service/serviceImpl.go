@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 	"shoppinglist/pkg/api"
@@ -34,42 +33,52 @@ func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupReques
 	return nil
 }
 
-func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest) (sesstionToken string, err error) {
-	var user userLogin
+func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest) (sessionToken string, err error) {
+	var uc api.UserContext
 	// Get the login details of user from DB
-	err = db.QueryRow("SELECT id, username, password FROM users where username = ?", req.UserName).Scan(&user.UserID, &user.UserName, &user.Password)
+	err = db.QueryRow("SELECT id, username, password FROM users where username = ?", req.UserName).Scan(&uc.UserID, &uc.UserName, &uc.Password)
 	if err != nil {
 		return "", errors.New(fmt.Sprintf("unauthorised access, username %v does not exist", req.UserName))
 	}
 
 	// compare the password
-	if err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+	if err = bcrypt.CompareHashAndPassword([]byte(uc.Password), []byte(req.Password)); err != nil {
 		return "", errors.New("unauthorised access, password does not match ")
 	}
-
+	// user authenticated, remove password from user context
+	uc.Password = ""
 	// update last logged in date of the user
-	_, err = db.Exec("update users set last_logged_in_at=? where id=?", time.Now(), user.UserID)
+	_, err = db.Exec("update users set last_logged_in_at=? where id=?", time.Now(), uc.UserID)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to update the last logged in date in DB")
 	}
 
-	// Create a new random session token
-	sessionToken := uuid.New().String()
-	// Set the token in the cache, along with the user whom it represents
-	// The token has an expiry time of 120 seconds
-	_, err = api.Cache.Do("SETEX", sessionToken, "120", user.UserID)
-	if err != nil {
-		// If there is an error in setting the cache, return an internal server error
-		return "", errors.Wrapf(err, "failed to set the session for username %v", req.UserName)
-	}
+	sessionToken, err = api.SetSessionContext(uc)
 	return sessionToken, nil
 }
 
-func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateListRequest) error {
-	_, err := db.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",
-		req.Name, req.Description, req.Owner, time.Now(), time.Now(), time.Now().AddDate(1,0,0), req.Status)
+func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateListRequest) (string, error) {
+	var uc api.UserContext
+	// create a new list
+	resp, err := db.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",
+		req.Name, req.Description, req.Owner, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0), req.Status)
 	if err != nil {
-		return errors.Wrap(err, "failed to insert new list in DB")
+		return "", errors.Wrap(err, "failed to insert new list in DB")
 	}
-	return nil
+	lid, _ := resp.LastInsertId()
+	// add the current user as a contributor of the list
+	_, err = db.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
+		lid, req.Owner, "edit", time.Now().AddDate(1, 0, 0))
+	if err != nil {
+		_,_ = db.Exec("delete from list where id=?", lid)
+		return "", errors.Wrap(err, "failed to insert new list-user pair in DB")
+	}
+
+	uc.UserID = req.Owner
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
+	return sessionToken, nil
 }
