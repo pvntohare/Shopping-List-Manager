@@ -146,6 +146,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	CreateItemURL = "/item"
+
+	// swagger:operation GET /item item GetListItemsRequest
+	//
+	// Returns all items of a list associated with logged in user
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: GetListItemsRequest
+	//   in: body
+	//   description: request Parameters fetching items of list
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/GetListItemsRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/GetListItemsResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	GetListItemsURL = "/item"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -195,6 +218,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r.Methods("POST").Path(CreateItemURL).Handler(httptransport.NewServer(
 		endpoints.CreateItem,
 		decodeHTTPCreateItemRequest,
+		encodeResponse,
+	))
+
+	r.Methods("GET").Path(GetListItemsURL).Handler(httptransport.NewServer(
+		endpoints.GetListItems,
+		decodeHTTPGetListItemsRequest,
 		encodeResponse,
 	))
 
@@ -282,6 +311,24 @@ func decodeHTTPCreateItemRequest(ctx context.Context, r *http.Request) (interfac
 	return req, nil
 }
 
+// decodeHTTPGetListItemsRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded create list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPGetListItemsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.GetListItemsRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, err
+	}
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	return req, nil
+}
+
 func getErrorInfo(err error) (int, string, string) {
 	httpStatus := http.StatusInternalServerError
 	if strings.Contains(err.Error(), "unauthorised access") {
@@ -345,6 +392,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return json.NewEncoder(w).Encode(resp)
 	case api.CreateItemResponse:
 		resp := response.(api.CreateItemResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.GetListItemsResponse:
+		resp := response.(api.GetListItemsResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
 			Value:   resp.SessionToken,

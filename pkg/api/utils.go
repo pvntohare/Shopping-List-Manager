@@ -8,7 +8,7 @@ import (
 )
 
 type UserContext struct {
-	UserID       int
+	UserID       int64
 	UserName     string
 	Password     string
 	SessionToken string
@@ -36,7 +36,7 @@ func GetUserContextFromSession(r *http.Request) (uc UserContext, err error) {
 		return uc, errors.New("unauthorised access")
 	}
 	uid := string(response.([]byte))
-	uc.UserID, err = strconv.Atoi(uid)
+	uc.UserID, err = strconv.ParseInt(uid, 10, 64)
 	if err != nil {
 		return uc, errors.Wrap(err, "unauthorised access,could not read userid from cache")
 	}

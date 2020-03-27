@@ -13,14 +13,14 @@ type Category struct {
 	Type string `json:"type"`
 }
 type User struct {
-	UserID   int    `json:"user_id"`
+	UserID   int64  `json:"user_id"`
 	UserName string `json:"user_name"`
 }
 type List struct {
-	ID             int       `json:"list_id"`
+	ID             int64     `json:"list_id"`
 	Name           string    `json:"name"`
 	Description    string    `json:"description"`
-	Owner           User      `json:"user"`
+	Owner          User      `json:"owner"`
 	CreatedAt      time.Time `json:"created_at"`
 	LastModifiedAt time.Time `json:"last_modified_at"`
 	Deadline       time.Time `json:"deadline"`
@@ -30,8 +30,8 @@ type List struct {
 }
 
 type Item struct {
-	ID             int       `json:"id"`
-	ListID         int       `json:"list_id"`
+	ID             int64     `json:"id"`
+	ListID         int64     `json:"list_id"`
 	Title          string    `json:"title"`
 	Description    string    `json:"description"`
 	Status         string    `json:"status"`
@@ -112,7 +112,7 @@ type CreateListResponse struct {
 // swagger:model
 type GetListsRequest struct {
 	SessionToken string
-	UserID       int
+	UserID       int64
 }
 
 // GetListsResponse represents the response struct returned by GET listAPI
@@ -136,4 +136,21 @@ type CreateItemRequest struct {
 type CreateItemResponse struct {
 	SessionToken string
 	Err          error `json:"error,omitempty"`
+}
+
+// GetListItemsRequest is request schema for reading items
+// It will read all the items from a lists for a user
+// swagger:model
+type GetListItemsRequest struct {
+	SessionToken string
+	UserID       int64
+	ListID       int64 `json:"list_id"`
+}
+
+// GetListsResponse represents the response struct returned by GET itemAPI
+// swagger:response GetListItemsResponse
+type GetListItemsResponse struct {
+	SessionToken string
+	Items        []Item `json:"items"`
+	Err          error  `json:"error,omitempty"`
 }

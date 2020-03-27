@@ -87,3 +87,14 @@ func (mw loggingMiddleware) CreateItem(ctx context.Context, req api.CreateItemRe
 	}()
 	return mw.next.CreateItem(ctx, req)
 }
+
+func (mw loggingMiddleware) GetListItems(ctx context.Context, req api.GetListItemsRequest) (resp api.GetListItemsResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "GetListItems", "req", req, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input GetListItem req :", req, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.GetListItems(ctx, req)
+}

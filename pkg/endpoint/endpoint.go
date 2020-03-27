@@ -9,12 +9,13 @@ import (
 )
 
 type Endpoints struct {
-	Ping       endpoint.Endpoint
-	Signup     endpoint.Endpoint
-	Login      endpoint.Endpoint
-	CreateList endpoint.Endpoint
-	GetLists   endpoint.Endpoint
-	CreateItem endpoint.Endpoint
+	Ping         endpoint.Endpoint
+	Signup       endpoint.Endpoint
+	Login        endpoint.Endpoint
+	CreateList   endpoint.Endpoint
+	GetLists     endpoint.Endpoint
+	CreateItem   endpoint.Endpoint
+	GetListItems endpoint.Endpoint
 }
 
 func New(s service.Service, logger log.Logger) Endpoints {
@@ -53,13 +54,20 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		createItemEndpoint = LoggingMiddleware(log.With(logger, "method", "GetItem"))(createItemEndpoint)
 	}
 
+	var getListItemsEndpoint endpoint.Endpoint
+	{
+		getListItemsEndpoint = MakeGetListItemsEndpoint(s)
+		getListItemsEndpoint = LoggingMiddleware(log.With(logger, "method", "GetItem"))(getListItemsEndpoint)
+	}
+
 	return Endpoints{
-		Ping:       pingEndpoint,
-		Signup:     singupEndpoint,
-		Login:      loginEndpoint,
-		CreateList: createListEndpoint,
-		GetLists:   getListsEndpoint,
-		CreateItem: createItemEndpoint,
+		Ping:         pingEndpoint,
+		Signup:       singupEndpoint,
+		Login:        loginEndpoint,
+		CreateList:   createListEndpoint,
+		GetLists:     getListsEndpoint,
+		CreateItem:   createItemEndpoint,
+		GetListItems: getListItemsEndpoint,
 	}
 }
 
@@ -102,5 +110,12 @@ func MakeCreateItemEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.CreateItemRequest)
 		return s.CreateItem(ctx, req), nil
+	}
+}
+
+func MakeGetListItemsEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.GetListItemsRequest)
+		return s.GetListItems(ctx, req), nil
 	}
 }

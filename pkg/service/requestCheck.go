@@ -21,3 +21,7 @@ func validateGetListsRequest(req *api.GetListsRequest) error {
 func validateCreateItemRequest(req *api.CreateItemRequest) error {
 	return nil
 }
+
+func validateGetListItemsRequest(req *api.GetListItemsRequest) error {
+	return nil
+}

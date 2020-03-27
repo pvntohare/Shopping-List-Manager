@@ -39,6 +39,7 @@ type Service interface {
 	CreateList(ctx context.Context, req api.CreateListRequest) (resp api.CreateListResponse)
 	GetLists(ctx context.Context, req api.GetListsRequest) (resp api.GetListsResponse)
 	CreateItem(ctx context.Context, req api.CreateItemRequest) (resp api.CreateItemResponse)
+	GetListItems(ctx context.Context, req api.GetListItemsRequest) (resp api.GetListItemsResponse)
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
@@ -144,5 +145,21 @@ func (s basicService) CreateItem(ctx context.Context, req api.CreateItemRequest)
 	}
 	resp.SessionToken = st
 	logger.Log("successfully_created_item :", req.Item.Title)
+	return
+}
+
+func (s basicService) GetListItems(ctx context.Context, req api.GetListItemsRequest) (resp api.GetListItemsResponse) {
+	logger := log.With(s.logger, "method", "GetListItems")
+	err := validateGetListItemsRequest(&req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "request validation failed for get list items service")
+	}
+	items, st, err := processGetListItemsRequest(ctx, s.db, &req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "failed to process get list items service")
+	}
+	resp.Items = items
+	resp.SessionToken = st
+	logger.Log("successfully_returned_items_for_list :", req.ListID)
 	return
 }

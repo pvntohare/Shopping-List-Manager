@@ -78,7 +78,18 @@ func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateLi
 	return sessionToken, nil
 }
 
-func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRequest) (lists []api.List, st string, err error) {
+func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRequest) ([]api.List,  string, error) {
+	var lists []api.List
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		sessionToken = req.SessionToken
+	}
+
+	// read lists associated with current user
 	query := "select l.id, l.name, l.description, l.owner, l.created_at, l.last_modified_at, l.deadline, " +
 		"l.status, lc.access_type, u.username from " +
 		"(select id, name, description, owner, created_at, last_modified_at, deadline, status from list) l " +
@@ -86,7 +97,7 @@ func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRe
 		"JOIN (select id, username from users) u ON l.id=lc.list and u.id=l.owner"
 	resp, err := db.Query(query, req.UserID)
 	if err != nil {
-		return lists, req.SessionToken, errors.Wrapf(err, "failed to query DB for gives user's lists")
+		return lists, sessionToken, errors.Wrapf(err, "failed to query DB for gives user's lists")
 	}
 	defer resp.Close()
 	for resp.Next() {
@@ -99,14 +110,7 @@ func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRe
 		}
 		lists = append(lists, list)
 	}
-	var uc api.UserContext
-	uc.UserID = req.UserID
-	uc.SessionToken = req.SessionToken
-	st, err = api.RefreshSessionContext(uc)
-	if err != nil {
-		return lists, req.SessionToken, nil
-	}
-	return
+	return lists, sessionToken, nil
 }
 
 func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateItemRequest) (string, error) {
@@ -150,4 +154,71 @@ func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateIt
 	}
 
 	return sessionToken, nil
+}
+
+func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetListItemsRequest) ([]api.Item, string, error) {
+	var items []api.Item
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		sessionToken = req.SessionToken
+	}
+
+	// check if current user have read permission for given list
+	resp, err := db.Query("select id from list_contributer where user=? and list=?", req.UserID, req.ListID)
+	if err != nil {
+		return items, sessionToken, errors.Wrapf(err, "failed to check list-users connection")
+	}
+	defer resp.Close()
+	if !resp.Next() {
+		// we did not find any entry for list-user connection
+		return items, sessionToken, errors.New("current user does not have read access for list")
+	}
+
+	// read items from give list
+	query := "select id, list, title, description, status, category, created_by, last_modified_by, bought_by, created_at," +
+		" last_modified_at, bought_at, deadline from item where list=?"
+	resp, err = db.Query(query, req.ListID)
+	if err != nil {
+		return items, sessionToken, errors.Wrapf(err, "failed to read items for given list")
+	}
+	defer resp.Close()
+	for resp.Next() {
+		var item api.Item
+		var boughtBy, boughtAt interface{}
+		resp.Scan(&item.ID, &item.ListID, &item.Title, &item.Description, &item.Status, &item.Category.ID, &item.CreatedBy.UserID, &item.LastModifiedBy.UserID,
+			&boughtBy, &item.CreatedAt, &item.LastModifiedAt, &boughtAt, &item.Deadline)
+		if boughtBy != nil {
+			item.BoughtBy.UserID = boughtBy.(int64)
+		}
+		if boughtAt != nil {
+			item.BoughtAt = boughtBy.(time.Time)
+		}
+		err = db.QueryRow("select username from users where id=?", item.CreatedBy.UserID).Scan(&item.CreatedBy.UserName)
+		if err != nil {
+			return items, sessionToken, errors.Wrapf(err, "failed to read username off item creator")
+		}
+		err = db.QueryRow("select username from users where id=?", item.LastModifiedBy.UserID).Scan(&item.LastModifiedBy.UserName)
+		if err != nil {
+			return items, sessionToken, errors.Wrapf(err, "failed to read username off latest item modifier")
+		}
+		err = db.QueryRow("select name, type from category where id=?", item.Category.ID).Scan(&item.Category.Name, &item.Category.Type)
+		if err != nil {
+			return items, sessionToken, errors.Wrapf(err, "failed to read category details of item")
+		}
+		if item.BoughtBy.UserID == 0 {
+			items = append(items, item)
+			continue
+		}
+		err = db.QueryRow("select username from users where id=?", item.BoughtBy.UserID).Scan(&item.BoughtBy.UserName)
+		if err != nil {
+			return items, sessionToken, errors.Wrapf(err, "failed to read username off item buyer")
+		}
+		items = append(items, item)
+	}
+
+	return items, sessionToken, nil
 }

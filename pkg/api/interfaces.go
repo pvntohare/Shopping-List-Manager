@@ -27,3 +27,6 @@ func (r GetListsResponse) Failed() error { return r.Err }
 
 // Failed implements endpoint.Failer.
 func (r CreateItemResponse) Failed() error { return r.Err }
+
+// Failed implements endpoint.Failer.
+func (r GetListItemsResponse) Failed() error { return r.Err }
