@@ -100,6 +100,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	CreateListURL = "/list"
+
+	// swagger:operation GET /list list GetListsRequest
+	//
+	// Returns all list associated with logged in user
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: GetListsRequest
+	//   in: body
+	//   description: request Parameters fetching lists
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/GetListsRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/GetListsResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	GetListsURL = "/list"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -137,6 +160,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r.Methods("POST").Path(CreateListURL).Handler(httptransport.NewServer(
 		endpoints.CreateList,
 		decodeHTTPCreateListRequest,
+		encodeResponse,
+	))
+
+	r.Methods("GET").Path(GetListsURL).Handler(httptransport.NewServer(
+		endpoints.GetLists,
+		decodeHTTPGetListsRequest,
 		encodeResponse,
 	))
 
@@ -186,7 +215,21 @@ func decodeHTTPCreateListRequest(ctx context.Context, r *http.Request) (interfac
 	if err != nil {
 		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
 	}
-	req.Owner = uc.UserID
+	req.List.Owner = uc.UserID
+	req.SessionToken = uc.SessionToken
+	return req, nil
+}
+
+// decodeHTTPGetListsRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded get lists request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPGetListsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.GetListsRequest
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+	}
+	req.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
 	return req, nil
 }
@@ -243,6 +286,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 			Expires: time.Now().Add(120 * time.Second),
 		})
 		return json.NewEncoder(w).Encode(struct{}{})
+	case api.GetListsResponse:
+		resp := response.(api.GetListsResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
 	default:
 		return json.NewEncoder(w).Encode(response)
 	}

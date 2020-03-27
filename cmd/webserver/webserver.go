@@ -100,7 +100,7 @@ func newWebServer(addr string, debugAddr string) {
 	}
 
 	//open a database connection
-	db, err := sql.Open("mysql", "root:root@/shoppinglist_test")
+	db, err := sql.Open("mysql", "root:root@/shoppinglist_test?parseTime=true")
 	if err != nil {
 		logger.Log("failed to open database connection with err: ", err)
 	}

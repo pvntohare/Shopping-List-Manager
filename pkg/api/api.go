@@ -7,6 +7,19 @@ import (
 
 var Cache redis.Conn
 
+type List struct {
+	ID             int       `json:"list_id"`
+	Name           string    `json:"name"`
+	Description    string    `json:"description"`
+	Owner          int       `json:"owner"`
+	CreatedAt      time.Time `json:"created_at"`
+	LastModifiedAt time.Time `json:"last_modified_at"`
+	Deadline       time.Time `json:"deadline"`
+	Status         string    `json:"status"`
+	AccessType     string    `json:"access_type,omitempty"`
+	CreatedByMe    bool      `json:"created_by_me,omitempty"`
+}
+
 // PingRequest api is used for checking health of the service
 // swagger:model
 type PingRequest struct {
@@ -58,14 +71,8 @@ type LoginResponse struct {
 // It will create a shopping list for current user
 // swagger:model
 type CreateListRequest struct {
-	SessionToken     string
-	Name             string    `json:"name"`
-	Description      string    `json:"description"`
-	Owner            int       `json:"owner"`
-	Created_at       time.Time `json:"created_at"`
-	Last_modified_at time.Time `json:"last_modified_at"`
-	Deadline         time.Time `json:"deadline"`
-	Status           string    `json:"status"`
+	SessionToken string
+	List         List `json:"list"`
 }
 
 // CreateListResponse represents the response struct returned by POST listAPI
@@ -73,4 +80,20 @@ type CreateListRequest struct {
 type CreateListResponse struct {
 	SessionToken string
 	Err          error `json:"error,omitempty"`
+}
+
+// GetListsRequest is request schema for reading the lists
+// It will read all the lists for a user
+// swagger:model
+type GetListsRequest struct {
+	SessionToken string
+	UserID       int
+}
+
+// GetListsResponse represents the response struct returned by GET listAPI
+// swagger:response GetListsResponse
+type GetListsResponse struct {
+	SessionToken string
+	Lists        []List `json:"lists"`
+	Err          error  `json:"error,omitempty"`
 }

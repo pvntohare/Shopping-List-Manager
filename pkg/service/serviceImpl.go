@@ -10,18 +10,13 @@ import (
 	"time"
 )
 
-type userLogin struct {
-	UserID   int    `json:"user_id"`
-	UserName string `json:"user_name"`
-	Password string `json:"password"`
-}
-
 func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupRequest) error {
 	query := fmt.Sprintf("SELECT id, username FROM users where username='%v'", req.UserName)
 	res, err := db.Query(query)
 	if err != nil {
 		return errors.Wrapf(err, "failed to read db for username %v", req.UserName)
 	}
+	defer res.Close()
 	if res.Next() {
 		return errors.New(fmt.Sprintf("username %v not available", req.UserName))
 	}
@@ -58,27 +53,52 @@ func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest)
 }
 
 func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateListRequest) (string, error) {
-	var uc api.UserContext
 	// create a new list
 	resp, err := db.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",
-		req.Name, req.Description, req.Owner, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0), req.Status)
+		req.List.Name, req.List.Description, req.List.Owner, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0), req.List.Status)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to insert new list in DB")
 	}
 	lid, _ := resp.LastInsertId()
 	// add the current user as a contributor of the list
 	_, err = db.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
-		lid, req.Owner, "edit", time.Now().AddDate(1, 0, 0))
+		lid, req.List.Owner, "edit", time.Now().AddDate(1, 0, 0))
 	if err != nil {
-		_,_ = db.Exec("delete from list where id=?", lid)
+		_, _ = db.Exec("delete from list where id=?", lid)
 		return "", errors.Wrap(err, "failed to insert new list-user pair in DB")
 	}
-
-	uc.UserID = req.Owner
+	var uc api.UserContext
+	uc.UserID = req.List.Owner
 	uc.SessionToken = req.SessionToken
 	sessionToken, err := api.RefreshSessionContext(uc)
 	if err != nil {
 		return req.SessionToken, nil
 	}
 	return sessionToken, nil
+}
+
+func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRequest) (lists []api.List, st string, err error) {
+	query := "select l.*, lc.access_type from (select id, name, description, owner, created_at, last_modified_at, deadline, status from list) l" +
+		" JOIN (select list, access_type from list_contributer where user=?) lc ON l.id=lc.list"
+	resp, err := db.Query(query, req.UserID)
+	if err != nil {
+		return lists, req.SessionToken, errors.Wrapf(err, "failed to query DB for gives user's lists")
+	}
+	defer resp.Close()
+	for resp.Next() {
+		var list api.List
+		resp.Scan(&list.ID, &list.Name, &list.Description, &list.Owner, &list.CreatedAt, &list.LastModifiedAt, &list.Deadline, &list.Status, &list.AccessType)
+		if list.Owner == req.UserID {
+			list.CreatedByMe = true
+		}
+		lists = append(lists, list)
+	}
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	st, err = api.RefreshSessionContext(uc)
+	if err != nil {
+		return lists, req.SessionToken, nil
+	}
+	return
 }

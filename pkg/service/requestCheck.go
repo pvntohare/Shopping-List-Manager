@@ -13,3 +13,7 @@ func validateLoginRequest(req *api.LoginRequest) error {
 func validateCreateListRequest(req *api.CreateListRequest) error {
 	return nil
 }
+
+func validateGetListsRequest(req *api.GetListsRequest) error {
+	return nil
+}

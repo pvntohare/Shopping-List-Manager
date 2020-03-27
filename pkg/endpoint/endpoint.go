@@ -13,6 +13,7 @@ type Endpoints struct {
 	Signup     endpoint.Endpoint
 	Login      endpoint.Endpoint
 	CreateList endpoint.Endpoint
+	GetLists   endpoint.Endpoint
 }
 
 func New(s service.Service, logger log.Logger) Endpoints {
@@ -39,11 +40,18 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		createListEndpoint = LoggingMiddleware(log.With(logger, "method", "CreateList"))(createListEndpoint)
 	}
 
+	var getListsEndpoint endpoint.Endpoint
+	{
+		getListsEndpoint = MakeGetListsEndpoint(s)
+		getListsEndpoint = LoggingMiddleware(log.With(logger, "method", "GetLists"))(getListsEndpoint)
+	}
+
 	return Endpoints{
 		Ping:       pingEndpoint,
 		Signup:     singupEndpoint,
 		Login:      loginEndpoint,
 		CreateList: createListEndpoint,
+		GetLists:   getListsEndpoint,
 	}
 }
 
@@ -72,5 +80,12 @@ func MakeCreateListEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.CreateListRequest)
 		return s.CreateList(ctx, req), nil
+	}
+}
+
+func MakeGetListsEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.GetListsRequest)
+		return s.GetLists(ctx, req), nil
 	}
 }
