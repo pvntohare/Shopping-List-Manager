@@ -123,6 +123,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	GetListsURL = "/list"
+
+	// swagger:operation POST /item item CreateItemRequest
+	//
+	// Creates an item in given shopping list
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: CreateItemRequest
+	//   in: body
+	//   description: request parameters for create item
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/CreateItemRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/CreateItemResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	CreateItemURL = "/item"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -166,6 +189,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r.Methods("GET").Path(GetListsURL).Handler(httptransport.NewServer(
 		endpoints.GetLists,
 		decodeHTTPGetListsRequest,
+		encodeResponse,
+	))
+
+	r.Methods("POST").Path(CreateItemURL).Handler(httptransport.NewServer(
+		endpoints.CreateItem,
+		decodeHTTPCreateItemRequest,
 		encodeResponse,
 	))
 
@@ -215,7 +244,7 @@ func decodeHTTPCreateListRequest(ctx context.Context, r *http.Request) (interfac
 	if err != nil {
 		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
 	}
-	req.List.Owner = uc.UserID
+	req.List.Owner.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
 	return req, nil
 }
@@ -230,6 +259,25 @@ func decodeHTTPGetListsRequest(ctx context.Context, r *http.Request) (interface{
 		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
 	}
 	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	return req, nil
+}
+
+// decodeHTTPCreateItemRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded create list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPCreateItemRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.CreateItemRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, err
+	}
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+	}
+	req.Item.CreatedBy.UserID = uc.UserID
+	req.Item.LastModifiedBy.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
 	return req, nil
 }
@@ -288,6 +336,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return json.NewEncoder(w).Encode(struct{}{})
 	case api.GetListsResponse:
 		resp := response.(api.GetListsResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.CreateItemResponse:
+		resp := response.(api.CreateItemResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
 			Value:   resp.SessionToken,
