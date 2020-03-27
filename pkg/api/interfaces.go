@@ -33,3 +33,6 @@ func (r GetListItemsResponse) Failed() error { return r.Err }
 
 // Failed implements endpoint.Failer.
 func (r BuyItemResponse) Failed() error { return r.Err }
+
+// Failed implements endpoint.Failer.
+func (r ShareListResponse) Failed() error { return r.Err }

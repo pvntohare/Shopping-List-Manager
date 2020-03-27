@@ -109,3 +109,14 @@ func (mw loggingMiddleware) BuyItem(ctx context.Context, req api.BuyItemRequest)
 	}()
 	return mw.next.BuyItem(ctx, req)
 }
+
+func (mw loggingMiddleware) ShareList(ctx context.Context, req api.ShareListRequest) (resp api.ShareListResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "ShareList", "req", req, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input ShareList req :", req, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.ShareList(ctx, req)
+}

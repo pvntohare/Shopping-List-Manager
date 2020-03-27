@@ -17,6 +17,7 @@ type Endpoints struct {
 	CreateItem   endpoint.Endpoint
 	GetListItems endpoint.Endpoint
 	BuyItem      endpoint.Endpoint
+	ShareList    endpoint.Endpoint
 }
 
 func New(s service.Service, logger log.Logger) Endpoints {
@@ -67,6 +68,12 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		buyItemEndpoint = LoggingMiddleware(log.With(logger, "method", "BuyItem"))(buyItemEndpoint)
 	}
 
+	var shareListEndpoint endpoint.Endpoint
+	{
+		shareListEndpoint = MakeShareListEndpoint(s)
+		shareListEndpoint = LoggingMiddleware(log.With(logger, "method", "ShareList"))(shareListEndpoint)
+	}
+
 	return Endpoints{
 		Ping:         pingEndpoint,
 		Signup:       singupEndpoint,
@@ -76,6 +83,7 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		CreateItem:   createItemEndpoint,
 		GetListItems: getListItemsEndpoint,
 		BuyItem:      buyItemEndpoint,
+		ShareList:    shareListEndpoint,
 	}
 }
 
@@ -132,5 +140,12 @@ func MakeBuyItemEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.BuyItemRequest)
 		return s.BuyItem(ctx, req), nil
+	}
+}
+
+func MakeShareListEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.ShareListRequest)
+		return s.ShareList(ctx, req), nil
 	}
 }

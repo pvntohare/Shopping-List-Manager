@@ -192,6 +192,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	BuyItemURL = "/buy"
+
+	// swagger:operation POST /share share ShareListRequest
+	//
+	// Share a list with given user
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: ShareListRequest
+	//   in: body
+	//   description: share a list with user
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/ShareListRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/ShareListResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	ShareListURL = "/share"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -256,6 +279,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 		encodeResponse,
 	))
 
+	r.Methods("POST").Path(ShareListURL).Handler(httptransport.NewServer(
+		endpoints.ShareList,
+		decodeHTTPShareListRequest,
+		encodeResponse,
+	))
+
 	return r
 }
 
@@ -300,7 +329,7 @@ func decodeHTTPCreateListRequest(ctx context.Context, r *http.Request) (interfac
 	}
 	uc, err := api.GetUserContextFromSession(r)
 	if err != nil {
-		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
 	}
 	req.List.Owner.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
@@ -314,7 +343,7 @@ func decodeHTTPGetListsRequest(ctx context.Context, r *http.Request) (interface{
 	var req api.GetListsRequest
 	uc, err := api.GetUserContextFromSession(r)
 	if err != nil {
-		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
 	}
 	req.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
@@ -332,7 +361,7 @@ func decodeHTTPCreateItemRequest(ctx context.Context, r *http.Request) (interfac
 	}
 	uc, err := api.GetUserContextFromSession(r)
 	if err != nil {
-		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
 	}
 	req.Item.CreatedBy.UserID = uc.UserID
 	req.Item.LastModifiedBy.UserID = uc.UserID
@@ -351,7 +380,7 @@ func decodeHTTPGetListItemsRequest(ctx context.Context, r *http.Request) (interf
 	}
 	uc, err := api.GetUserContextFromSession(r)
 	if err != nil {
-		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
 	}
 	req.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
@@ -369,7 +398,25 @@ func decodeHTTPBuyItemRequest(ctx context.Context, r *http.Request) (interface{}
 	}
 	uc, err := api.GetUserContextFromSession(r)
 	if err != nil {
-		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	return req, nil
+}
+
+// decodeHTTPShareListRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded share list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPShareListRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.ShareListRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, err
+	}
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
 	}
 	req.UserID = uc.UserID
 	req.SessionToken = uc.SessionToken
@@ -457,6 +504,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return json.NewEncoder(w).Encode(resp)
 	case api.BuyItemResponse:
 		resp := response.(api.BuyItemResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.ShareListResponse:
+		resp := response.(api.ShareListResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
 			Value:   resp.SessionToken,

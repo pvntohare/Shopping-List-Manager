@@ -41,6 +41,7 @@ type Service interface {
 	CreateItem(ctx context.Context, req api.CreateItemRequest) (resp api.CreateItemResponse)
 	GetListItems(ctx context.Context, req api.GetListItemsRequest) (resp api.GetListItemsResponse)
 	BuyItem(ctx context.Context, req api.BuyItemRequest) (resp api.BuyItemResponse)
+	ShareList(ctx context.Context, req api.ShareListRequest) (resp api.ShareListResponse)
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
@@ -177,5 +178,20 @@ func (s basicService) BuyItem(ctx context.Context, req api.BuyItemRequest) (resp
 	}
 	resp.SessionToken = st
 	logger.Log("successfully_marked_item_as_bought :", req.ItemID)
+	return
+}
+
+func (s basicService) ShareList(ctx context.Context, req api.ShareListRequest) (resp api.ShareListResponse) {
+	logger := log.With(s.logger, "method", "ShareList")
+	err := validateShareListRequest(&req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "request validation failed for share list service")
+	}
+	st, err := processShareListRequest(ctx, s.db, &req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "failed to process share list service")
+	}
+	resp.SessionToken = st
+	logger.Log("successfully_shared_list :", req.ListID)
 	return
 }

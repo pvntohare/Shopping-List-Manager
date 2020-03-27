@@ -278,3 +278,44 @@ func processBuyItemRequest(ctx context.Context, db *sql.DB, req *api.BuyItemRequ
 
 	return sessionToken, nil
 }
+
+func processShareListRequest(ctx context.Context, db *sql.DB, req *api.ShareListRequest) (string, error) {
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
+
+	// check if the current user is owner of the list to be shared
+	var owner int64
+	err = db.QueryRow("select owner from list where id=?", req.ListID).Scan(&owner)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New(fmt.Sprintf("list %v does not exist", req.ListID))
+		}
+		return sessionToken, errors.Wrapf(err, "failed to read list details")
+	}
+	if owner != req.UserID {
+		return sessionToken, errors.New("unauthorised access, only list owner can share the list")
+	}
+
+	// share the list
+	var uid int64
+	err = db.QueryRow("select id from users where username=?", req.UserName).Scan(&uid)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New(fmt.Sprintf("user %v is not registered", req.UserName))
+		}
+		return sessionToken, errors.Wrapf(err, "failed to read user details")
+	}
+	_, err = db.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
+		req.ListID, uid, req.AccessType, time.Now().AddDate(1, 0, 0))
+	if err != nil {
+		return sessionToken, errors.Wrapf(err, "failed to make an entry in list_contributor table")
+	}
+
+	return sessionToken, nil
+}

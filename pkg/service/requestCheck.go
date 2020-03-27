@@ -29,3 +29,7 @@ func validateGetListItemsRequest(req *api.GetListItemsRequest) error {
 func validateBuyItemRequest(req *api.BuyItemRequest) error {
 	return nil
 }
+
+func validateShareListRequest(req *api.ShareListRequest) error {
+	return nil
+}

@@ -171,3 +171,21 @@ type BuyItemResponse struct {
 	SessionToken string
 	Err          error `json:"error,omitempty"`
 }
+
+// ShareListRequest is request schema to share a list with another user
+// It will  share the list
+// swagger:model
+type ShareListRequest struct {
+	SessionToken string
+	UserID       int64
+	ListID       int64  `json:"list_id"`
+	UserName     string `json:"user_name"`
+	AccessType   string `json:"access_type"`
+}
+
+// ShareListResponse represents the response struct returned by POST shareAPI
+// swagger:response ShareListResponse
+type ShareListResponse struct {
+	SessionToken string
+	Err          error `json:"error,omitempty"`
+}
