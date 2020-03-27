@@ -40,6 +40,7 @@ type Service interface {
 	GetLists(ctx context.Context, req api.GetListsRequest) (resp api.GetListsResponse)
 	CreateItem(ctx context.Context, req api.CreateItemRequest) (resp api.CreateItemResponse)
 	GetListItems(ctx context.Context, req api.GetListItemsRequest) (resp api.GetListItemsResponse)
+	BuyItem(ctx context.Context, req api.BuyItemRequest) (resp api.BuyItemResponse)
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
@@ -161,5 +162,20 @@ func (s basicService) GetListItems(ctx context.Context, req api.GetListItemsRequ
 	resp.Items = items
 	resp.SessionToken = st
 	logger.Log("successfully_returned_items_for_list :", req.ListID)
+	return
+}
+
+func (s basicService) BuyItem(ctx context.Context, req api.BuyItemRequest) (resp api.BuyItemResponse) {
+	logger := log.With(s.logger, "method", "BuyItem")
+	err := validateBuyItemRequest(&req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "request validation failed for buy item service")
+	}
+	st, err := processBuyItemRequest(ctx, s.db, &req)
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "failed to process get list items service")
+	}
+	resp.SessionToken = st
+	logger.Log("successfully_marked_item_as_bought :", req.ItemID)
 	return
 }

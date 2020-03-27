@@ -98,3 +98,14 @@ func (mw loggingMiddleware) GetListItems(ctx context.Context, req api.GetListIte
 	}()
 	return mw.next.GetListItems(ctx, req)
 }
+
+func (mw loggingMiddleware) BuyItem(ctx context.Context, req api.BuyItemRequest) (resp api.BuyItemResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "BuyItem", "req", req, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input BuyItem req :", req, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.BuyItem(ctx, req)
+}

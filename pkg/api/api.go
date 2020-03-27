@@ -154,3 +154,20 @@ type GetListItemsResponse struct {
 	Items        []Item `json:"items"`
 	Err          error  `json:"error,omitempty"`
 }
+
+// BuyItemRequest is request schema for buy item
+// It will  mark given item as bought by given user
+// swagger:model
+type BuyItemRequest struct {
+	SessionToken string
+	UserID       int64
+	ItemID       int64  `json:"item_id"`
+	UserName     string `json:"user_name"`
+}
+
+// BuyItemResponse represents the response struct returned by POST buyAPI
+// swagger:response BuyItemResponse
+type BuyItemResponse struct {
+	SessionToken string
+	Err          error `json:"error,omitempty"`
+}

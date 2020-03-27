@@ -34,7 +34,10 @@ func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest)
 	// Get the login details of user from DB
 	err = db.QueryRow("SELECT id, username, password FROM users where username = ?", req.UserName).Scan(&uc.UserID, &uc.UserName, &uc.Password)
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("unauthorised access, username %v does not exist", req.UserName))
+		if err == sql.ErrNoRows {
+			return "", errors.New(fmt.Sprintf("unauthorised access, username %v does not exist", req.UserName))
+		}
+		return "", errors.Wrapf(err, "failed to query DB for given user")
 	}
 
 	// compare the password
@@ -78,7 +81,7 @@ func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateLi
 	return sessionToken, nil
 }
 
-func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRequest) ([]api.List,  string, error) {
+func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRequest) ([]api.List, string, error) {
 	var lists []api.List
 	// Refresh user session
 	var uc api.UserContext
@@ -127,6 +130,9 @@ func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateIt
 	var accessType string
 	err = db.QueryRow("select access_type from list_contributer where list=? and user=?", req.Item.ListID, req.Item.CreatedBy.UserID).Scan(&accessType)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New("unauthorised access, user does not have permission to edit the list")
+		}
 		return sessionToken, errors.Wrapf(err, "error checking list access for user")
 	}
 	if strings.Compare(accessType, "edit") != 0 {
@@ -195,7 +201,7 @@ func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetLis
 			item.BoughtBy.UserID = boughtBy.(int64)
 		}
 		if boughtAt != nil {
-			item.BoughtAt = boughtBy.(time.Time)
+			item.BoughtAt = boughtAt.(time.Time)
 		}
 		err = db.QueryRow("select username from users where id=?", item.CreatedBy.UserID).Scan(&item.CreatedBy.UserName)
 		if err != nil {
@@ -221,4 +227,54 @@ func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetLis
 	}
 
 	return items, sessionToken, nil
+}
+
+func processBuyItemRequest(ctx context.Context, db *sql.DB, req *api.BuyItemRequest) (string, error) {
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
+	// check if current user had write access to item list
+	var (
+		listAccessType string
+		itemStatus     string
+		listID         int64
+	)
+	err = db.QueryRow("select lc.access_type, i.status, i.list from list_contributer lc, item i "+
+		"where i.id=? and lc.user=? and lc.list=i.list", req.ItemID, req.UserID).Scan(&listAccessType, &itemStatus, &listID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New("unauthorised access, user does not have permission to edit the list item belongs to")
+		}
+		return sessionToken, errors.Wrapf(err, "failed to read user permission to edit list")
+	}
+	if strings.Compare(listAccessType, "edit") != 0 {
+		return sessionToken, errors.New("unauthorised access, user have read only permission for list item belongs to")
+	}
+	if strings.Compare(itemStatus, "todo") != 0 {
+		return sessionToken, errors.New(fmt.Sprintf("item is in %v state, need in todo state", itemStatus))
+	}
+
+	// mark item as bought
+	var boughtBy api.User
+	boughtBy.UserName = req.UserName
+	err = db.QueryRow("select id from users where username=?", req.UserName).Scan(&boughtBy.UserID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New(fmt.Sprintf("given buyer username %v is not a registered user", req.UserName))
+		}
+		return sessionToken, errors.Wrapf(err, "failed to read user details for buyer")
+	}
+	_, err = db.Exec("update item set status=?, last_modified_by=?, bought_by=?, last_modified_at=?, bought_at=? where id=?",
+		"bought", req.UserID, boughtBy.UserID, time.Now(), time.Now(), req.ItemID)
+	if err != nil {
+		return sessionToken, errors.Wrapf(err, "failed to mark item as bought in DB")
+	}
+	// TODO update list's last_modified_at field after the item deletion
+
+	return sessionToken, nil
 }

@@ -169,6 +169,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	GetListItemsURL = "/item"
+
+	// swagger:operation POST /buy buy BuyItemRequest
+	//
+	// Mark an item as bought by given user
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: BuyItemRequest
+	//   in: body
+	//   description: mark item as bought
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/BuyItemRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/buyItemResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	BuyItemURL = "/buy"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -224,6 +247,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r.Methods("GET").Path(GetListItemsURL).Handler(httptransport.NewServer(
 		endpoints.GetListItems,
 		decodeHTTPGetListItemsRequest,
+		encodeResponse,
+	))
+
+	r.Methods("POST").Path(BuyItemURL).Handler(httptransport.NewServer(
+		endpoints.BuyItem,
+		decodeHTTPBuyItemRequest,
 		encodeResponse,
 	))
 
@@ -293,7 +322,7 @@ func decodeHTTPGetListsRequest(ctx context.Context, r *http.Request) (interface{
 }
 
 // decodeHTTPCreateItemRequest is a transport/http.DecodeRequestFunc that decodes a
-// JSON-encoded create list request from the HTTP request body. Primarily useful in a
+// JSON-encoded create item request from the HTTP request body. Primarily useful in a
 // server.
 func decodeHTTPCreateItemRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	var req api.CreateItemRequest
@@ -312,10 +341,28 @@ func decodeHTTPCreateItemRequest(ctx context.Context, r *http.Request) (interfac
 }
 
 // decodeHTTPGetListItemsRequest is a transport/http.DecodeRequestFunc that decodes a
-// JSON-encoded create list request from the HTTP request body. Primarily useful in a
+// JSON-encoded get list items request from the HTTP request body. Primarily useful in a
 // server.
 func decodeHTTPGetListItemsRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 	var req api.GetListItemsRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, err
+	}
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read usedid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	return req, nil
+}
+
+// decodeHTTPBuyItemRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded buy item request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPBuyItemRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.BuyItemRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		return nil, err
@@ -401,6 +448,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return json.NewEncoder(w).Encode(resp)
 	case api.GetListItemsResponse:
 		resp := response.(api.GetListItemsResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.BuyItemResponse:
+		resp := response.(api.BuyItemResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
 			Value:   resp.SessionToken,
