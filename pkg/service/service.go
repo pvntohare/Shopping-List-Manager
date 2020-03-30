@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"database/sql"
+	_ "database/sql"
 	"github.com/go-kit/kit/log"
+	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 	"shoppinglist/pkg/api"
@@ -26,7 +27,7 @@ type Info struct {
 }
 
 type basicService struct {
-	db           *sql.DB
+	db           *sqlx.DB
 	logger       log.Logger
 	ConfigObject *Config
 	serviceInfo  *Info
@@ -49,7 +50,7 @@ type Service interface {
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
-func New(db *sql.DB, logger log.Logger, configObject *Config, serviceInfo *Info /*other middlewares here*/) Service {
+func New(db *sqlx.DB, logger log.Logger, configObject *Config, serviceInfo *Info /*other middlewares here*/) Service {
 	var svc Service
 	{
 		svc = basicService{db, logger, configObject, serviceInfo}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 	"shoppinglist/pkg/api"
@@ -11,7 +12,7 @@ import (
 	"time"
 )
 
-func checkListEditPermission(db *sql.DB, query string, ID1 int64, ID2 int64) error {
+func checkListEditPermission(db *sqlx.DB, query string, ID1 int64, ID2 int64) error {
 	var accessType string
 	err := db.QueryRow(query, ID1, ID2).Scan(&accessType)
 	//rr := db.QueryRow("select access_type from list_contributer where list=? and user=?", params[0], params[1]).Scan(&accessType)
@@ -27,7 +28,7 @@ func checkListEditPermission(db *sql.DB, query string, ID1 int64, ID2 int64) err
 	return nil
 }
 
-func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupRequest) error {
+func processSingupRequest(ctx context.Context, db *sqlx.DB, req *api.SignupRequest) error {
 	query := fmt.Sprintf("SELECT id, username FROM users where username='%v'", req.UserName)
 	res, err := db.Query(query)
 	if err != nil {
@@ -45,7 +46,7 @@ func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupReques
 	return nil
 }
 
-func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest) (sessionToken string, err error) {
+func processLoginRequest(ctx context.Context, db *sqlx.DB, req *api.LoginRequest) (sessionToken string, err error) {
 	var uc api.UserContext
 
 	// Get the login details of user from DB
@@ -73,7 +74,7 @@ func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest)
 	return sessionToken, nil
 }
 
-func processLogoutRequest(ctx context.Context, _ *sql.DB, req *api.LogoutRequest) error {
+func processLogoutRequest(ctx context.Context, _ *sqlx.DB, req *api.LogoutRequest) error {
 	err := api.DeleteSessionContext(req.SessionToken)
 	if err != nil {
 		return errors.Wrapf(err, "failed to delete session from cache while logging out")
@@ -81,21 +82,35 @@ func processLogoutRequest(ctx context.Context, _ *sql.DB, req *api.LogoutRequest
 	return nil
 }
 
-func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateListRequest) (string, error) {
+func processCreateListRequest(ctx context.Context, db *sqlx.DB, req *api.CreateListRequest) (string, error) {
+	// create a new db transaction
+	tx, err := db.Beginx()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to begin transaction")
+	}
 	// create a new list
-	resp, err := db.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",
+	resp, err := tx.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",
 		req.List.Name, req.List.Description, req.List.Owner.UserID, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0), req.List.Status)
 	if err != nil {
+		tx.Rollback()
 		return "", errors.Wrap(err, "failed to insert new list in DB")
 	}
-	lid, _ := resp.LastInsertId()
-
+	lid, err := resp.LastInsertId()
+	if err != nil {
+		tx.Rollback()
+		return "", errors.Wrapf(err, "failed to get the id of created list, aborting")
+	}
 	// add the current user as a contributor of the list
-	_, err = db.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
+	_, err = tx.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
 		lid, req.List.Owner.UserID, api.Edit, time.Now().AddDate(1, 0, 0))
 	if err != nil {
-		_, _ = db.Exec("delete from list where id=?", lid)
-		return "", errors.Wrap(err, "failed to insert new list-user pair in DB")
+		tx.Rollback()
+		return "", errors.Wrap(err, "failed to insert new list-user pair in DB, aborting")
+	}
+	err = tx.Commit()
+	if err != nil {
+		tx.Rollback()
+		return "", errors.Wrapf(err, "failed to commit db transaction while creating list, aborting")
 	}
 	var uc api.UserContext
 	uc.UserID = req.List.Owner.UserID
@@ -107,16 +122,8 @@ func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateLi
 	return sessionToken, nil
 }
 
-func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRequest) ([]api.List, string, error) {
+func processGetListsRequest(ctx context.Context, db *sqlx.DB, req *api.GetListsRequest) ([]api.List, string, error) {
 	var lists []api.List
-	// Refresh user session
-	var uc api.UserContext
-	uc.UserID = req.UserID
-	uc.SessionToken = req.SessionToken
-	sessionToken, err := api.RefreshSessionContext(uc)
-	if err != nil {
-		sessionToken = req.SessionToken
-	}
 
 	// read lists associated with current user
 	query := "select l.id, l.name, l.description, l.owner, l.created_at, l.last_modified_at, l.deadline, " +
@@ -126,7 +133,7 @@ func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRe
 		"JOIN (select id, username from users) u ON l.id=lc.list and u.id=l.owner"
 	resp, err := db.Query(query, req.UserID)
 	if err != nil {
-		return lists, sessionToken, errors.Wrapf(err, "failed to query DB for gives user's lists")
+		return lists, "", errors.Wrapf(err, "failed to query DB for gives user's lists")
 	}
 	defer resp.Close()
 	for resp.Next() {
@@ -139,64 +146,7 @@ func processGetListsRequest(ctx context.Context, db *sql.DB, req *api.GetListsRe
 		}
 		lists = append(lists, list)
 	}
-	return lists, sessionToken, nil
-}
 
-func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateItemRequest) (string, error) {
-	// Refresh user session
-	var uc api.UserContext
-	uc.UserID = req.Item.CreatedBy.UserID
-	uc.SessionToken = req.SessionToken
-	sessionToken, err := api.RefreshSessionContext(uc)
-	if err != nil {
-		return req.SessionToken, nil
-	}
-
-	// check user permission to edit the list
-	query := "select access_type from list_contributer where list=? and user=?"
-	err = checkListEditPermission(db, query, req.Item.ListID, req.Item.CreatedBy.UserID)
-	if err != nil {
-		return sessionToken, err
-	}
-
-	//check the list status
-	var listStatus string
-	err = db.QueryRow("select status from list where id=?", req.Item.ListID).Scan(&listStatus)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return sessionToken, errors.New("the mentioned list does not exist")
-		}
-		return sessionToken, errors.Wrapf(err, "error checking list status")
-	}
-	if strings.Compare(listStatus, api.Todo) != 0 {
-		return sessionToken, errors.New(fmt.Sprintf("list status:%v should be %v", listStatus, api.Todo))
-	}
-
-	// Check if item category already exists in our DB
-	// add it to DB if does not already exist
-	if req.Item.Category.ID == 0 {
-		// this is a new category, add it to our DB
-		resp, err := db.Exec("insert into category (name, type) values (?,?)", req.Item.Category.Name, req.Item.Category.Type)
-		if err != nil {
-			return sessionToken, errors.Wrapf(err, "failed to add new category in DB")
-		}
-		req.Item.Category.ID, _ = resp.LastInsertId()
-	}
-
-	// insert the new item
-	query = "insert into item (list, title, description, status, category, created_by, last_modified_by, " +
-		"created_at, last_modified_at, deadline) values (?,?,?,?,?,?,?,?,?,?)"
-	_, err = db.Exec(query, req.Item.ListID, req.Item.Title, req.Item.Description, api.Todo, req.Item.Category.ID, req.Item.CreatedBy.UserID,
-		req.Item.CreatedBy.UserID, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0))
-	if err != nil {
-		return sessionToken, errors.Wrapf(err, "failed to add new item")
-	}
-
-	return sessionToken, nil
-}
-
-func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetListItemsRequest) ([]api.Item, string, error) {
-	var items []api.Item
 	// Refresh user session
 	var uc api.UserContext
 	uc.UserID = req.UserID
@@ -205,15 +155,91 @@ func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetLis
 	if err != nil {
 		sessionToken = req.SessionToken
 	}
+	return lists, sessionToken, nil
+}
 
+func processCreateItemRequest(ctx context.Context, db *sqlx.DB, req *api.CreateItemRequest) (string, error) {
+	// check user permission to edit the list
+	query := "select access_type from list_contributer where list=? and user=?"
+	err := checkListEditPermission(db, query, req.Item.ListID, req.Item.CreatedBy.UserID)
+	if err != nil {
+		return "", err
+	}
+
+	// begin a transaction
+	tx, err := db.Beginx()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to begin transaction")
+	}
+	//check the list status
+	var listStatus string
+	err = tx.Get(&listStatus, "select status from list where id=?", req.Item.ListID)
+	if err != nil {
+		tx.Rollback()
+		if err == sql.ErrNoRows {
+			return "", errors.New("the mentioned list does not exist")
+		}
+		return "", errors.Wrapf(err, "error checking list status")
+	}
+	if strings.Compare(listStatus, api.Todo) != 0 {
+		tx.Rollback()
+		return "", errors.New(fmt.Sprintf("list status:%v should be %v", listStatus, api.Todo))
+	}
+
+	// Check if item category already exists in our DB
+	// add it to DB if does not already exist
+	if req.Item.Category.ID == 0 {
+		// this is a new category, add it to our DB
+		resp, err := tx.Exec("insert into category (name, type) values (?,?)", req.Item.Category.Name, req.Item.Category.Type)
+		if err != nil {
+			tx.Rollback()
+			return "", errors.Wrapf(err, "failed to add new category in DB")
+		}
+		req.Item.Category.ID, _ = resp.LastInsertId()
+	}
+
+	// insert the new item
+	query = "insert into item (list, title, description, status, category, created_by, last_modified_by, " +
+		"created_at, last_modified_at, deadline) values (?,?,?,?,?,?,?,?,?,?)"
+	_, err = tx.Exec(query, req.Item.ListID, req.Item.Title, req.Item.Description, api.Todo, req.Item.Category.ID, req.Item.CreatedBy.UserID,
+		req.Item.CreatedBy.UserID, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0))
+	if err != nil {
+		tx.Rollback()
+		return "", errors.Wrapf(err, "failed to add new item")
+	}
+	err = tx.Commit()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to commit transaction for creating item in list")
+	}
+
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.Item.CreatedBy.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
+	return sessionToken, nil
+}
+
+func processGetListItemsRequest(ctx context.Context, db *sqlx.DB, req *api.GetListItemsRequest) ([]api.Item, string, error) {
+	var items []api.Item
+
+	// begin a transaction
+	tx, err := db.Beginx()
+	if err != nil {
+		return items, "", errors.Wrapf(err, "failed to begin a transaction for get list")
+	}
 	// check if current user have read permission for given list
 	var id int64
-	err = db.QueryRow("select id from list_contributer where user=? and list=?", req.UserID, req.ListID).Scan(&id)
+	err = tx.Get(&id, "select id from list_contributer where user=? and list=?", req.UserID, req.ListID)
 	if err != nil {
+		tx.Rollback()
 		if err == sql.ErrNoRows {
-			return items, sessionToken, errors.New("current user does not have read access for list")
+			return items, "", errors.New("current user does not have read access for list")
 		}
-		return items, sessionToken, errors.Wrapf(err, "failed to check list-users connection")
+		return items, "", errors.Wrapf(err, "failed to check list-users connection")
 	}
 
 	// read items from give list
@@ -221,7 +247,8 @@ func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetLis
 		" last_modified_at, bought_at, deadline from item where list=?"
 	resp, err := db.Query(query, req.ListID)
 	if err != nil {
-		return items, sessionToken, errors.Wrapf(err, "failed to read items for given list")
+		tx.Rollback()
+		return items, "", errors.Wrapf(err, "failed to read items for given list")
 	}
 	defer resp.Close()
 	for resp.Next() {
@@ -235,96 +262,111 @@ func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetLis
 		if boughtAt != nil {
 			item.BoughtAt = boughtAt.(time.Time)
 		}
-		err = db.QueryRow("select username from users where id=?", item.CreatedBy.UserID).Scan(&item.CreatedBy.UserName)
+		err = tx.Get(&item.CreatedBy.UserName, "select username from users where id=?", item.CreatedBy.UserID)
 		if err != nil {
-			return items, sessionToken, errors.Wrapf(err, "failed to read username off item creator")
+			tx.Rollback()
+			return items, "", errors.Wrapf(err, "failed to read username off item creator")
 		}
-		err = db.QueryRow("select username from users where id=?", item.LastModifiedBy.UserID).Scan(&item.LastModifiedBy.UserName)
+		err = tx.Get(&item.LastModifiedBy.UserName, "select username from users where id=?", item.LastModifiedBy.UserID)
 		if err != nil {
-			return items, sessionToken, errors.Wrapf(err, "failed to read username off latest item modifier")
+			tx.Rollback()
+			return items, "", errors.Wrapf(err, "failed to read username off latest item modifier")
 		}
-		err = db.QueryRow("select name, type from category where id=?", item.Category.ID).Scan(&item.Category.Name, &item.Category.Type)
+		err = tx.Get(&item.Category, "select id, name, type from category where id=?", item.Category.ID)
 		if err != nil {
-			return items, sessionToken, errors.Wrapf(err, "failed to read category details of item")
+			tx.Rollback()
+			return items, "", errors.Wrapf(err, "failed to read category details of item")
 		}
 		if item.BoughtBy.UserID == 0 {
 			items = append(items, item)
 			continue
 		}
-		err = db.QueryRow("select username from users where id=?", item.BoughtBy.UserID).Scan(&item.BoughtBy.UserName)
+		err = tx.Get(&item.BoughtBy.UserName, "select username from users where id=?", item.BoughtBy.UserID)
 		if err != nil {
-			return items, sessionToken, errors.Wrapf(err, "failed to read username off item buyer")
+			tx.Rollback()
+			return items, "", errors.Wrapf(err, "failed to read username off item buyer")
 		}
 		items = append(items, item)
 	}
-
-	return items, sessionToken, nil
-}
-
-func processBuyItemRequest(ctx context.Context, db *sql.DB, req *api.BuyItemRequest) (string, error) {
+	tx.Commit()
 	// Refresh user session
 	var uc api.UserContext
 	uc.UserID = req.UserID
 	uc.SessionToken = req.SessionToken
 	sessionToken, err := api.RefreshSessionContext(uc)
 	if err != nil {
-		return req.SessionToken, nil
+		sessionToken = req.SessionToken
 	}
+	return items, sessionToken, nil
+}
+
+func processBuyItemRequest(ctx context.Context, db *sqlx.DB, req *api.BuyItemRequest) (string, error) {
 	// check if current user had write access to item list
 	var (
 		listAccessType string
 		itemStatus     string
 		listID         int64
 	)
-	err = db.QueryRow("select lc.access_type, i.status, i.list from list_contributer lc, item i "+
+	err := db.QueryRow("select lc.access_type, i.status, i.list from list_contributer lc, item i "+
 		"where i.id=? and lc.user=? and lc.list=i.list", req.ItemID, req.UserID).Scan(&listAccessType, &itemStatus, &listID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return sessionToken, errors.New("unauthorised access, user does not have permission to edit the list item belongs to")
+			return "", errors.New("unauthorised access, user does not have permission to edit the list item belongs to")
 		}
-		return sessionToken, errors.Wrapf(err, "failed to read user permission to edit list")
+		return "", errors.Wrapf(err, "failed to read user permission to edit list")
 	}
 	if strings.Compare(listAccessType, api.Edit) != 0 {
-		return sessionToken, errors.New("unauthorised access, user have read only permission for list item belongs to")
+		return "", errors.New("unauthorised access, user have read only permission for list item belongs to")
+	}
+
+	// begin a db transaction
+	tx, err := db.Beginx()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to begin a db transaction for buy item")
 	}
 
 	// check list status and item status
 	var listStatus string
-	err = db.QueryRow("select status from list where id=?", listID).Scan(&listStatus)
+	err = tx.Get(&listStatus, "select status from list where id=?", listID)
 	if err != nil {
+		tx.Rollback()
 		if err == sql.ErrNoRows {
-			return sessionToken, errors.New("the mentioned list does not exist")
+			return "", errors.New("the mentioned list does not exist")
 		}
-		return sessionToken, errors.Wrapf(err, "failed to read list status")
+		return "", errors.Wrapf(err, "failed to read list status")
 	}
 	if strings.Compare(listStatus, api.Todo) != 0 {
-		return sessionToken, errors.New(fmt.Sprintf("list is in %v state, need in todo state", itemStatus))
+		tx.Rollback()
+		return "", errors.New(fmt.Sprintf("list is in %v state, need in todo state", itemStatus))
 	}
 	if strings.Compare(itemStatus, api.Todo) != 0 {
-		return sessionToken, errors.New(fmt.Sprintf("item is in %v state, need in todo state", itemStatus))
+		tx.Rollback()
+		return "", errors.New(fmt.Sprintf("item is in %v state, need in todo state", itemStatus))
 	}
 
 	// mark item as bought
 	var boughtBy api.User
 	boughtBy.UserName = req.UserName
-	err = db.QueryRow("select id from users where username=?", req.UserName).Scan(&boughtBy.UserID)
+	err = tx.Get(&boughtBy.UserID, "select id from users where username=?", req.UserName)
 	if err != nil {
+		tx.Rollback()
 		if err == sql.ErrNoRows {
-			return sessionToken, errors.New(fmt.Sprintf("given buyer username %v is not a registered user", req.UserName))
+			return "", errors.New(fmt.Sprintf("given buyer username %v is not a registered user", req.UserName))
 		}
-		return sessionToken, errors.Wrapf(err, "failed to read user details for buyer")
+		return "", errors.Wrapf(err, "failed to read user details for buyer")
 	}
-	_, err = db.Exec("update item set status=?, last_modified_by=?, bought_by=?, last_modified_at=?, bought_at=? where id=?",
+	_, err = tx.Exec("update item set status=?, last_modified_by=?, bought_by=?, last_modified_at=?, bought_at=? where id=?",
 		api.Bought, req.UserID, boughtBy.UserID, time.Now(), time.Now(), req.ItemID)
 	if err != nil {
-		return sessionToken, errors.Wrapf(err, "failed to mark item as bought in DB")
+		tx.Rollback()
+		return "", errors.Wrapf(err, "failed to mark item as bought in DB")
+	}
+	err = tx.Commit()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to commit transacton for buy item")
 	}
 	// TODO update list's last_modified_at field after the item deletion
 
-	return sessionToken, nil
-}
-
-func processShareListRequest(ctx context.Context, db *sql.DB, req *api.ShareListRequest) (string, error) {
 	// Refresh user session
 	var uc api.UserContext
 	uc.UserID = req.UserID
@@ -333,39 +375,62 @@ func processShareListRequest(ctx context.Context, db *sql.DB, req *api.ShareList
 	if err != nil {
 		return req.SessionToken, nil
 	}
+	return sessionToken, nil
+}
 
+func processShareListRequest(ctx context.Context, db *sqlx.DB, req *api.ShareListRequest) (string, error) {
+	tx, err := db.Beginx()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to start db transaction for share list")
+	}
 	// check if the current user is owner of the list to be shared
 	var owner int64
-	err = db.QueryRow("select owner from list where id=?", req.ListID).Scan(&owner)
+	err = tx.Get(&owner,"select owner from list where id=?", req.ListID)
 	if err != nil {
+		tx.Rollback()
 		if err == sql.ErrNoRows {
-			return sessionToken, errors.New(fmt.Sprintf("list %v does not exist", req.ListID))
+			return "", errors.New(fmt.Sprintf("list %v does not exist", req.ListID))
 		}
-		return sessionToken, errors.Wrapf(err, "failed to read list details")
+		return "", errors.Wrapf(err, "failed to read list details")
 	}
 	if owner != req.UserID {
-		return sessionToken, errors.New("unauthorised access, only list owner can share the list")
+		tx.Rollback()
+		return "", errors.New("unauthorised access, only list owner can share the list")
 	}
 
 	// share the list
 	var uid int64
-	err = db.QueryRow("select id from users where username=?", req.UserName).Scan(&uid)
+	err = tx.Get(&uid,"select id from users where username=?", req.UserName)
 	if err != nil {
+		tx.Rollback()
 		if err == sql.ErrNoRows {
-			return sessionToken, errors.New(fmt.Sprintf("user %v is not registered", req.UserName))
+			return "", errors.New(fmt.Sprintf("user %v is not registered", req.UserName))
 		}
-		return sessionToken, errors.Wrapf(err, "failed to read user details")
+		return "", errors.Wrapf(err, "failed to read user details")
 	}
-	_, err = db.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
+	_, err = tx.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
 		req.ListID, uid, req.AccessType, time.Now().AddDate(1, 0, 0))
 	if err != nil {
-		return sessionToken, errors.Wrapf(err, "failed to make an entry in list_contributor table")
+		tx.Rollback()
+		return "", errors.Wrapf(err, "failed to make an entry in list_contributor table")
+	}
+	err = tx.Commit()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to commit db transaction for share list")
 	}
 
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
 	return sessionToken, nil
 }
 
-func processGetAllCategoriesRequest(ctx context.Context, db *sql.DB, req *api.GetAllCategoriesRequest) ([]api.Category, string, error) {
+func processGetAllCategoriesRequest(ctx context.Context, db *sqlx.DB, req *api.GetAllCategoriesRequest) ([]api.Category, string, error) {
 	var categories []api.Category
 	// Refresh user session
 	var uc api.UserContext
@@ -389,7 +454,7 @@ func processGetAllCategoriesRequest(ctx context.Context, db *sql.DB, req *api.Ge
 	return categories, sessionToken, nil
 }
 
-func processDeleteListRequest(ctx context.Context, db *sql.DB, req *api.DeleteListRequest) (string, error) {
+func processDeleteListRequest(ctx context.Context, db *sqlx.DB, req *api.DeleteListRequest) (string, error) {
 	// Refresh user session
 	var uc api.UserContext
 	uc.UserID = req.UserID
@@ -415,7 +480,7 @@ func processDeleteListRequest(ctx context.Context, db *sql.DB, req *api.DeleteLi
 	return sessionToken, nil
 }
 
-func processDeleteItemRequest(ctx context.Context, db *sql.DB, req *api.DeleteItemRequest) (string, error) {
+func processDeleteItemRequest(ctx context.Context, db *sqlx.DB, req *api.DeleteItemRequest) (string, error) {
 	// Refresh user session
 	var uc api.UserContext
 	uc.UserID = req.UserID

@@ -651,7 +651,8 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 			Value:   resp.SessionToken,
 			Expires: time.Now().Add(120 * time.Second),
 		})
-		return json.NewEncoder(w).Encode(struct{}{})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
 	case api.CreateListResponse:
 		resp := response.(api.CreateListResponse)
 		http.SetCookie(w, &http.Cookie{
@@ -659,7 +660,8 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 			Value:   resp.SessionToken,
 			Expires: time.Now().Add(120 * time.Second),
 		})
-		return json.NewEncoder(w).Encode(struct{}{})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
 	case api.GetListsResponse:
 		resp := response.(api.GetListsResponse)
 		http.SetCookie(w, &http.Cookie{

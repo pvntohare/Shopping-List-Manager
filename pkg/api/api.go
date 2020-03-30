@@ -8,9 +8,9 @@ import (
 var Cache redis.Conn
 
 type Category struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-	Type string `json:"type"`
+	ID   int64  `json:"id" db:"id"`
+	Name string `json:"name" db:"name"`
+	Type string `json:"type" db:"type"`
 }
 type User struct {
 	UserID   int64  `json:"user_id"`

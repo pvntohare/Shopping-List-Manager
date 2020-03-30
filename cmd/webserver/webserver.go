@@ -1,13 +1,14 @@
 package main
 
 import (
-	"database/sql"
+	_ "database/sql"
 	"flag"
 	"fmt"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gomodule/redigo/redis"
+	"github.com/jmoiron/sqlx"
 	"github.com/spf13/viper"
 	"net/http"
 	"os"
@@ -100,7 +101,7 @@ func newWebServer(addr string, debugAddr string) {
 	}
 
 	//open a database connection
-	db, err := sql.Open("mysql", "root:root@/shoppinglist_test?parseTime=true")
+	db, err := sqlx.Open("mysql", "root:root@/shoppinglist_test?parseTime=true")
 	if err != nil {
 		logger.Log("failed to open database connection with err: ", err)
 	}
