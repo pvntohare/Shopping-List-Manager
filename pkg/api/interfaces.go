@@ -20,6 +20,9 @@ func (r SignupResponse) Failed() error { return r.Err }
 func (r LoginResponse) Failed() error { return r.Err }
 
 // Failed implements endpoint.Failer.
+func (r LogoutResponse) Failed() error { return r.Err }
+
+// Failed implements endpoint.Failer.
 func (r CreateListResponse) Failed() error { return r.Err }
 
 // Failed implements endpoint.Failer.

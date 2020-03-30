@@ -56,6 +56,15 @@ func SetSessionContext(uc UserContext) (sessionToken string, err error) {
 	return
 }
 
+func DeleteSessionContext(sessionToken string) error {
+	// Delete the older session token
+	_, err := Cache.Do("DEL", sessionToken)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete old session")
+	}
+	return nil
+}
+
 func RefreshSessionContext(uc UserContext) (string, error) {
 	newSessionToken, err := SetSessionContext(uc)
 	if err != nil {
@@ -63,7 +72,7 @@ func RefreshSessionContext(uc UserContext) (string, error) {
 	}
 
 	// Delete the older session token
-	_, err = Cache.Do("DEL", uc.SessionToken)
+	err = DeleteSessionContext(uc.SessionToken)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to delete old session while refreshing user session")
 	}

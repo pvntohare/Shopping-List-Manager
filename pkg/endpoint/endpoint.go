@@ -18,6 +18,7 @@ type Endpoints struct {
 	GetListItems endpoint.Endpoint
 	BuyItem      endpoint.Endpoint
 	ShareList    endpoint.Endpoint
+	Logout       endpoint.Endpoint
 }
 
 func New(s service.Service, logger log.Logger) Endpoints {
@@ -36,6 +37,12 @@ func New(s service.Service, logger log.Logger) Endpoints {
 	{
 		loginEndpoint = MakeLoginEndpoint(s)
 		loginEndpoint = LoggingMiddleware(log.With(logger, "method", "Login"))(loginEndpoint)
+	}
+
+	var logoutEndpoint endpoint.Endpoint
+	{
+		logoutEndpoint = MakeLogoutEndpoint(s)
+		logoutEndpoint = LoggingMiddleware(log.With(logger, "method", "Logout"))(logoutEndpoint)
 	}
 
 	var createListEndpoint endpoint.Endpoint
@@ -84,6 +91,7 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		GetListItems: getListItemsEndpoint,
 		BuyItem:      buyItemEndpoint,
 		ShareList:    shareListEndpoint,
+		Logout:       logoutEndpoint,
 	}
 }
 
@@ -105,6 +113,13 @@ func MakeLoginEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.LoginRequest)
 		return s.Login(ctx, req), nil
+	}
+}
+
+func MakeLogoutEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.LogoutRequest)
+		return s.Logout(ctx, req), nil
 	}
 }
 

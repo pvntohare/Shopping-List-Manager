@@ -55,6 +55,17 @@ func (mw loggingMiddleware) Login(ctx context.Context, req api.LoginRequest) (re
 	return mw.next.Login(ctx, req)
 }
 
+func (mw loggingMiddleware) Logout(ctx context.Context, req api.LogoutRequest) (resp api.LogoutResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "Logout", "req", req, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input logout req :", req, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.Logout(ctx, req)
+}
+
 func (mw loggingMiddleware) CreateList(ctx context.Context, req api.CreateListRequest) (resp api.CreateListResponse) {
 	defer func() {
 		if resp.Err == nil {

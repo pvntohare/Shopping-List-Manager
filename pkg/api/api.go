@@ -92,6 +92,19 @@ type LoginResponse struct {
 	Err          error `json:"error,omitempty"`
 }
 
+// LogoutRequest will invalidate the user session
+// swagger:model
+type LogoutRequest struct {
+	UserID       int64
+	SessionToken string
+}
+
+// LogoutResponse represents the response struct returned by logoutAPI
+// swagger:response LogoutResponse
+type LogoutResponse struct {
+	Err error `json:"error,omitempty"`
+}
+
 // CreateListRequest is request schema for creating new list
 // It will create a shopping list for current user
 // swagger:model

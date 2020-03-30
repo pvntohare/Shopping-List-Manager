@@ -56,6 +56,14 @@ func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest)
 	return sessionToken, nil
 }
 
+func processLogoutRequest(ctx context.Context, _ *sql.DB, req *api.LogoutRequest) error {
+	err := api.DeleteSessionContext(req.SessionToken)
+	if err != nil {
+		return errors.Wrapf(err, "failed to delete session from cache while logging out")
+	}
+	return nil
+}
+
 func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateListRequest) (string, error) {
 	// create a new list
 	resp, err := db.Exec("insert Into list (name, description, owner, created_at, last_modified_at, deadline, status) values (?,?,?,?,?,?,?)",

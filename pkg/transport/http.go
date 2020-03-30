@@ -78,6 +78,29 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	LoginURL = "/login"
 
+	// swagger:operation POST /logout logout LogoutRequest
+	//
+	// Logs out a logged in user
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: LogoutRequest
+	//   in: body
+	//   description: request Parameters for logout
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/LogoutRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/LogoutResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	LogoutURL = "/logout"
+
 	// swagger:operation POST /list list CreateListRequest
 	//
 	// Creates a new shopping list for logged in user
@@ -249,6 +272,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 		encodeResponse,
 	))
 
+	r.Methods("POST").Path(LogoutURL).Handler(httptransport.NewServer(
+		endpoints.Logout,
+		decodeHTTPLogoutRequest,
+		encodeResponse,
+	))
+
 	r.Methods("POST").Path(CreateListURL).Handler(httptransport.NewServer(
 		endpoints.CreateList,
 		decodeHTTPCreateListRequest,
@@ -315,6 +344,20 @@ func decodeHTTPLoginRequest(ctx context.Context, r *http.Request) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
+	return req, nil
+}
+
+// decodeHTTPLogoutRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded login request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPLogoutRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.LogoutRequest
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
 	return req, nil
 }
 

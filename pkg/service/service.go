@@ -36,6 +36,7 @@ type Service interface {
 	Ping(ctx context.Context, req api.PingRequest) (resp api.PingResponse)
 	Signup(ctx context.Context, req api.SignupRequest) (resp api.SignupResponse)
 	Login(ctx context.Context, req api.LoginRequest) (resp api.LoginResponse)
+	Logout(ctx context.Context, req api.LogoutRequest) (resp api.LogoutResponse)
 	CreateList(ctx context.Context, req api.CreateListRequest) (resp api.CreateListResponse)
 	GetLists(ctx context.Context, req api.GetListsRequest) (resp api.GetListsResponse)
 	CreateItem(ctx context.Context, req api.CreateItemRequest) (resp api.CreateItemResponse)
@@ -100,6 +101,16 @@ func (s basicService) Login(ctx context.Context, req api.LoginRequest) (resp api
 	}
 	resp.SessionToken = st
 	logger.Log("successfully_logged_in_for_user :", req.UserName)
+	return
+}
+
+func (s basicService) Logout(ctx context.Context, req api.LogoutRequest) (resp api.LogoutResponse) {
+	logger := log.With(s.logger, "method", "LogoutService")
+	resp.Err = processLogoutRequest(ctx, s.db, &req)
+	if resp.Err != nil {
+		return
+	}
+	logger.Log("User_successfully_logged_out", req.UserID)
 	return
 }
 
