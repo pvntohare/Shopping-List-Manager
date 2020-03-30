@@ -142,3 +142,25 @@ func (mw loggingMiddleware) GetAllCategories(ctx context.Context, req api.GetAll
 	}()
 	return mw.next.GetAllCategories(ctx, req)
 }
+
+func (mw loggingMiddleware) DeleteList(ctx context.Context, req api.DeleteListRequest) (resp api.DeleteListResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "DeleteList", "list_id", req.ListID, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input DeleteList list_id :", req.ListID, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.DeleteList(ctx, req)
+}
+
+func (mw loggingMiddleware) DeleteItem(ctx context.Context, req api.DeleteItemRequest) (resp api.DeleteItemResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "DeleteItem", "item_id", req.ItemID, "resp", resp)
+		} else {
+			mw.logger.Log("failed for input DeleteItem item_id :", req.ItemID, "error : ", resp.Err)
+		}
+	}()
+	return mw.next.DeleteItem(ctx, req)
+}

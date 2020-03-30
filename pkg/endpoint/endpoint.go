@@ -20,6 +20,8 @@ type Endpoints struct {
 	ShareList        endpoint.Endpoint
 	Logout           endpoint.Endpoint
 	GetAllCategories endpoint.Endpoint
+	DeleteList       endpoint.Endpoint
+	DeleteItem       endpoint.Endpoint
 }
 
 func New(s service.Service, logger log.Logger) Endpoints {
@@ -88,6 +90,18 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		getAllCategoriesEndpoint = LoggingMiddleware(log.With(logger, "method", "GetAllCategories"))(getAllCategoriesEndpoint)
 	}
 
+	var deleteListEndpoint endpoint.Endpoint
+	{
+		deleteListEndpoint = MakeDeleteListEndpoint(s)
+		deleteListEndpoint = LoggingMiddleware(log.With(logger, "method", "DeleteList"))(deleteListEndpoint)
+	}
+
+	var deleteItemEndpoint endpoint.Endpoint
+	{
+		deleteItemEndpoint = MakeDeleteItemEndpoint(s)
+		deleteItemEndpoint = LoggingMiddleware(log.With(logger, "method", "DeleteItem"))(deleteItemEndpoint)
+	}
+
 	return Endpoints{
 		Ping:             pingEndpoint,
 		Signup:           singupEndpoint,
@@ -100,6 +114,8 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		ShareList:        shareListEndpoint,
 		Logout:           logoutEndpoint,
 		GetAllCategories: getAllCategoriesEndpoint,
+		DeleteList:       deleteListEndpoint,
+		DeleteItem:       deleteItemEndpoint,
 	}
 }
 
@@ -177,5 +193,19 @@ func MakeGetAllCategoriesEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.GetAllCategoriesRequest)
 		return s.GetAllCategories(ctx, req), nil
+	}
+}
+
+func MakeDeleteListEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.DeleteListRequest)
+		return s.DeleteList(ctx, req), nil
+	}
+}
+
+func MakeDeleteItemEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.DeleteItemRequest)
+		return s.DeleteItem(ctx, req), nil
 	}
 }

@@ -11,6 +11,22 @@ import (
 	"time"
 )
 
+func checkListEditPermission(db *sql.DB, query string, ID1 int64, ID2 int64) error {
+	var accessType string
+	err := db.QueryRow(query, ID1, ID2).Scan(&accessType)
+	//rr := db.QueryRow("select access_type from list_contributer where list=? and user=?", params[0], params[1]).Scan(&accessType)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("unauthorised access, user does not have permission to edit the list")
+		}
+		return errors.Wrapf(err, "error checking list access for user")
+	}
+	if strings.Compare(accessType, "edit") != 0 {
+		return errors.New("unauthorised access, user does not have permission to edit the list")
+	}
+	return nil
+}
+
 func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupRequest) error {
 	query := fmt.Sprintf("SELECT id, username FROM users where username='%v'", req.UserName)
 	res, err := db.Query(query)
@@ -31,6 +47,7 @@ func processSingupRequest(ctx context.Context, db *sql.DB, req *api.SignupReques
 
 func processLoginRequest(ctx context.Context, db *sql.DB, req *api.LoginRequest) (sessionToken string, err error) {
 	var uc api.UserContext
+
 	// Get the login details of user from DB
 	err = db.QueryRow("SELECT id, username, password FROM users where username = ?", req.UserName).Scan(&uc.UserID, &uc.UserName, &uc.Password)
 	if err != nil {
@@ -72,9 +89,10 @@ func processCreateListRequest(ctx context.Context, db *sql.DB, req *api.CreateLi
 		return "", errors.Wrap(err, "failed to insert new list in DB")
 	}
 	lid, _ := resp.LastInsertId()
+
 	// add the current user as a contributor of the list
 	_, err = db.Exec("insert into list_contributer (list, user, access_type, valid_until) values (?,?,?,?)",
-		lid, req.List.Owner.UserID, "edit", time.Now().AddDate(1, 0, 0))
+		lid, req.List.Owner.UserID, api.Edit, time.Now().AddDate(1, 0, 0))
 	if err != nil {
 		_, _ = db.Exec("delete from list where id=?", lid)
 		return "", errors.Wrap(err, "failed to insert new list-user pair in DB")
@@ -135,19 +153,13 @@ func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateIt
 	}
 
 	// check user permission to edit the list
-	var accessType string
-	err = db.QueryRow("select access_type from list_contributer where list=? and user=?", req.Item.ListID, req.Item.CreatedBy.UserID).Scan(&accessType)
+	query := "select access_type from list_contributer where list=? and user=?"
+	err = checkListEditPermission(db, query, req.Item.ListID, req.Item.CreatedBy.UserID)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return sessionToken, errors.New("unauthorised access, user does not have permission to edit the list")
-		}
-		return sessionToken, errors.Wrapf(err, "error checking list access for user")
-	}
-	if strings.Compare(accessType, "edit") != 0 {
-		return sessionToken, errors.New("unauthorised access, user does not have permission to edit the list")
+		return sessionToken, err
 	}
 
-	//check if the list status
+	//check the list status
 	var listStatus string
 	err = db.QueryRow("select status from list where id=?", req.Item.ListID).Scan(&listStatus)
 	if err != nil {
@@ -156,8 +168,8 @@ func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateIt
 		}
 		return sessionToken, errors.Wrapf(err, "error checking list status")
 	}
-	if strings.Compare(listStatus, "todo") != 0 {
-		return sessionToken, errors.New(fmt.Sprintf("list status:%v should be todo", listStatus))
+	if strings.Compare(listStatus, api.Todo) != 0 {
+		return sessionToken, errors.New(fmt.Sprintf("list status:%v should be %v", listStatus, api.Todo))
 	}
 
 	// Check if item category already exists in our DB
@@ -172,9 +184,9 @@ func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateIt
 	}
 
 	// insert the new item
-	query := "insert into item (list, title, description, status, category, created_by, last_modified_by, " +
+	query = "insert into item (list, title, description, status, category, created_by, last_modified_by, " +
 		"created_at, last_modified_at, deadline) values (?,?,?,?,?,?,?,?,?,?)"
-	_, err = db.Exec(query, req.Item.ListID, req.Item.Title, req.Item.Description, "todo", req.Item.Category.ID, req.Item.CreatedBy.UserID,
+	_, err = db.Exec(query, req.Item.ListID, req.Item.Title, req.Item.Description, api.Todo, req.Item.Category.ID, req.Item.CreatedBy.UserID,
 		req.Item.CreatedBy.UserID, time.Now(), time.Now(), time.Now().AddDate(1, 0, 0))
 	if err != nil {
 		return sessionToken, errors.Wrapf(err, "failed to add new item")
@@ -195,20 +207,19 @@ func processGetListItemsRequest(ctx context.Context, db *sql.DB, req *api.GetLis
 	}
 
 	// check if current user have read permission for given list
-	resp, err := db.Query("select id from list_contributer where user=? and list=?", req.UserID, req.ListID)
+	var id int64
+	err = db.QueryRow("select id from list_contributer where user=? and list=?", req.UserID, req.ListID).Scan(&id)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return items, sessionToken, errors.New("current user does not have read access for list")
+		}
 		return items, sessionToken, errors.Wrapf(err, "failed to check list-users connection")
-	}
-	defer resp.Close()
-	if !resp.Next() {
-		// we did not find any entry for list-user connection
-		return items, sessionToken, errors.New("current user does not have read access for list")
 	}
 
 	// read items from give list
 	query := "select id, list, title, description, status, category, created_by, last_modified_by, bought_by, created_at," +
 		" last_modified_at, bought_at, deadline from item where list=?"
-	resp, err = db.Query(query, req.ListID)
+	resp, err := db.Query(query, req.ListID)
 	if err != nil {
 		return items, sessionToken, errors.Wrapf(err, "failed to read items for given list")
 	}
@@ -273,10 +284,23 @@ func processBuyItemRequest(ctx context.Context, db *sql.DB, req *api.BuyItemRequ
 		}
 		return sessionToken, errors.Wrapf(err, "failed to read user permission to edit list")
 	}
-	if strings.Compare(listAccessType, "edit") != 0 {
+	if strings.Compare(listAccessType, api.Edit) != 0 {
 		return sessionToken, errors.New("unauthorised access, user have read only permission for list item belongs to")
 	}
-	if strings.Compare(itemStatus, "todo") != 0 {
+
+	// check list status and item status
+	var listStatus string
+	err = db.QueryRow("select status from list where id=?", listID).Scan(&listStatus)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New("the mentioned list does not exist")
+		}
+		return sessionToken, errors.Wrapf(err, "failed to read list status")
+	}
+	if strings.Compare(listStatus, api.Todo) != 0 {
+		return sessionToken, errors.New(fmt.Sprintf("list is in %v state, need in todo state", itemStatus))
+	}
+	if strings.Compare(itemStatus, api.Todo) != 0 {
 		return sessionToken, errors.New(fmt.Sprintf("item is in %v state, need in todo state", itemStatus))
 	}
 
@@ -291,7 +315,7 @@ func processBuyItemRequest(ctx context.Context, db *sql.DB, req *api.BuyItemRequ
 		return sessionToken, errors.Wrapf(err, "failed to read user details for buyer")
 	}
 	_, err = db.Exec("update item set status=?, last_modified_by=?, bought_by=?, last_modified_at=?, bought_at=? where id=?",
-		"bought", req.UserID, boughtBy.UserID, time.Now(), time.Now(), req.ItemID)
+		api.Bought, req.UserID, boughtBy.UserID, time.Now(), time.Now(), req.ItemID)
 	if err != nil {
 		return sessionToken, errors.Wrapf(err, "failed to mark item as bought in DB")
 	}
@@ -363,4 +387,56 @@ func processGetAllCategoriesRequest(ctx context.Context, db *sql.DB, req *api.Ge
 		categories = append(categories, category)
 	}
 	return categories, sessionToken, nil
+}
+
+func processDeleteListRequest(ctx context.Context, db *sql.DB, req *api.DeleteListRequest) (string, error) {
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
+
+	// check if user has edit permission for list
+	query := "select access_type from list_contributer where list=? and user=?"
+	err = checkListEditPermission(db, query, req.ListID, req.UserID)
+	if err != nil {
+		return sessionToken, err
+	}
+
+	// mark the list as deleted
+	_, err = db.Exec("update list set status=? where id=?", api.Deleted, req.ListID)
+	if err != nil {
+		return sessionToken, errors.Wrapf(err, "failed to mark list:%v as deleted", req.ListID)
+	}
+
+	return sessionToken, nil
+}
+
+func processDeleteItemRequest(ctx context.Context, db *sql.DB, req *api.DeleteItemRequest) (string, error) {
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return req.SessionToken, nil
+	}
+
+	// check if user has edit permissions for list
+	query := "select access_type from list_contributer where user=? and list in (select list from item where id=?)"
+	err = checkListEditPermission(db, query, req.UserID, req.ItemID)
+	if err != nil {
+		return sessionToken, err
+	}
+
+	// mark the item as deleted
+	_, err = db.Exec("update item set status=? where id=?", api.Deleted, req.ItemID)
+	if err != nil {
+		return sessionToken, errors.Wrapf(err, "failed to mark item:%v as deleted", req.ItemID)
+	}
+
+	return sessionToken, nil
 }

@@ -14,6 +14,14 @@ type UserContext struct {
 	SessionToken string
 }
 
+const (
+	Todo     = "todo"
+	Deleted  = "deleted"
+	Bought   = "bought"
+	Edit     = "edit"
+	ReadOnly = "read_only"
+)
+
 func GetUserContextFromSession(r *http.Request) (uc UserContext, err error) {
 	// obtain the session token from the requests cookies
 	c, err := r.Cookie("session_token")

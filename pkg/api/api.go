@@ -218,3 +218,35 @@ type GetAllCategoriesResponse struct {
 	Categories   []Category `json:"categories"`
 	Err          error      `json:"error,omitempty"`
 }
+
+// DeleteListRequest is request schema for delete list
+// It will mark given list as deleted
+// swagger:model
+type DeleteListRequest struct {
+	SessionToken string
+	UserID       int64
+	ListID       int64
+}
+
+// DeleteListResponse represents the response struct returned by POST deletelistAPI
+// swagger: response DeleteListResponse
+type DeleteListResponse struct {
+	SessionToken string
+	Err          error `json:error,omitempty`
+}
+
+// DeleteItemRequest is request schema for delete item in list
+// It will mark given item as deleted
+// swagger:model
+type DeleteItemRequest struct {
+	SessionToken string
+	UserID       int64
+	ItemID       int64
+}
+
+// DeleteItemResponse represents the response struct returned by POST deleteitemAPI
+// swagger: response DeleteItemResponse
+type DeleteItemResponse struct {
+	SessionToken string
+	Err          error `json:error,omitempty`
+}

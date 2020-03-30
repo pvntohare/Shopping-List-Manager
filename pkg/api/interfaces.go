@@ -42,3 +42,9 @@ func (r ShareListResponse) Failed() error { return r.Err }
 
 // Failed implements endpoint.Failer.
 func (r GetAllCategoriesResponse) Failed() error { return r.Err }
+
+// Failed implements endpoint.Failer.
+func (r DeleteListResponse) Failed() error { return r.Err }
+
+// Failed implements endpoint.Failer.
+func (r DeleteItemResponse) Failed() error { return r.Err }

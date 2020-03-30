@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"shoppinglist/pkg/api"
 	"shoppinglist/pkg/endpoint"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -261,6 +262,52 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	CategoriesURL = "/categories"
+
+	// swagger:operation POST /delete/list/{lid} delete_list DeleteListRequest
+	//
+	// Mark given list as deleted
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: DeleteListRequest
+	//   in: body
+	//   description: mark given list as deleted
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/DeleteListRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/DeleteListResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	DeleteListURL = "/delete/list/{lid}"
+
+	// swagger:operation POST /delete/item/{iid} delete_item DeleteItemRequest
+	//
+	// Mark given item as deleted
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: DeleteItemRequest
+	//   in: body
+	//   description: mark given item as deleted
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/DeleteItemRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/DeleteItemResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	DeleteItemURL = "/delete/item/{iid}"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -340,6 +387,18 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r.Methods("GET").Path(CategoriesURL).Handler(httptransport.NewServer(
 		endpoints.GetAllCategories,
 		decodeHTTPGetAllCategoriesRequest,
+		encodeResponse,
+	))
+
+	r.Methods("POST").Path(DeleteListURL).Handler(httptransport.NewServer(
+		endpoints.DeleteList,
+		decodeHTTPDeleteListRequest,
+		encodeResponse,
+	))
+
+	r.Methods("POST").Path(DeleteItemURL).Handler(httptransport.NewServer(
+		endpoints.DeleteItem,
+		decodeHTTPDeleteItemRequest,
 		encodeResponse,
 	))
 
@@ -509,6 +568,46 @@ func decodeHTTPGetAllCategoriesRequest(ctx context.Context, r *http.Request) (in
 	return req, nil
 }
 
+// decodeHTTPDeleteListRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded share list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPDeleteListRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.DeleteListRequest
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	params := mux.Vars(r)
+	lid, err := strconv.ParseInt(params["lid"], 10, 64)
+	if err != nil {
+		return nil, errors.Wrapf(err, "invalid list id in url")
+	}
+	req.ListID = lid
+	return req, nil
+}
+
+// decodeHTTPDeleteItemRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded share list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPDeleteItemRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.DeleteItemRequest
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	params := mux.Vars(r)
+	iid, err := strconv.ParseInt(params["iid"], 10, 64)
+	if err != nil {
+		return nil, errors.Wrapf(err, "invalid item id in url")
+	}
+	req.ItemID = iid
+	return req, nil
+}
+
 func getErrorInfo(err error) (int, string, string) {
 	httpStatus := http.StatusInternalServerError
 	if strings.Contains(err.Error(), "unauthorised access") {
@@ -608,6 +707,24 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return json.NewEncoder(w).Encode(resp)
 	case api.GetAllCategoriesResponse:
 		resp := response.(api.GetAllCategoriesResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.DeleteListResponse:
+		resp := response.(api.DeleteListResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.DeleteItemResponse:
+		resp := response.(api.DeleteItemResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
 			Value:   resp.SessionToken,

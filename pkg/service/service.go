@@ -44,6 +44,8 @@ type Service interface {
 	BuyItem(ctx context.Context, req api.BuyItemRequest) (resp api.BuyItemResponse)
 	ShareList(ctx context.Context, req api.ShareListRequest) (resp api.ShareListResponse)
 	GetAllCategories(ctx context.Context, req api.GetAllCategoriesRequest) (resp api.GetAllCategoriesResponse)
+	DeleteList(ctx context.Context, req api.DeleteListRequest) (resp api.DeleteListResponse)
+	DeleteItem(ctx context.Context, req api.DeleteItemRequest) (resp api.DeleteItemResponse)
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
@@ -222,5 +224,25 @@ func (s basicService) GetAllCategories(ctx context.Context, req api.GetAllCatego
 		return
 	}
 	resp.Categories = categories
+	return
+}
+
+func (s basicService) DeleteList(ctx context.Context, req api.DeleteListRequest) (resp api.DeleteListResponse) {
+	st, err := processDeleteListRequest(ctx, s.db, &req)
+	resp.SessionToken = st
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "failed to delete the list")
+		return
+	}
+	return
+}
+
+func (s basicService) DeleteItem(ctx context.Context, req api.DeleteItemRequest) (resp api.DeleteItemResponse) {
+	st, err := processDeleteItemRequest(ctx, s.db, &req)
+	resp.SessionToken = st
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "failed to delete the item")
+		return
+	}
 	return
 }
