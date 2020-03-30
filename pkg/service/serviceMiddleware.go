@@ -131,3 +131,14 @@ func (mw loggingMiddleware) ShareList(ctx context.Context, req api.ShareListRequ
 	}()
 	return mw.next.ShareList(ctx, req)
 }
+
+func (mw loggingMiddleware) GetAllCategories(ctx context.Context, req api.GetAllCategoriesRequest) (resp api.GetAllCategoriesResponse) {
+	defer func() {
+		if resp.Err == nil {
+			mw.logger.Log("method", "GetAllCategories", "req", req, "resp", resp)
+		} else {
+			mw.logger.Log("failed to get categories err: ", resp.Err)
+		}
+	}()
+	return mw.next.GetAllCategories(ctx, req)
+}

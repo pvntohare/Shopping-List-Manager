@@ -202,3 +202,19 @@ type ShareListResponse struct {
 	SessionToken string
 	Err          error `json:"error,omitempty"`
 }
+
+// GetAllCategoriesRequest is request schema to get categories
+// It will return all the registered categories in system
+// swagger:model
+type GetAllCategoriesRequest struct {
+	SessionToken string
+	UserID       int64
+}
+
+// GetAllCategoriesResponse represents the response struct returned by GET categoriesAPI
+// swagger: response GetAllCategoriesResponse
+type GetAllCategoriesResponse struct {
+	SessionToken string
+	Categories   []Category `json:"categories"`
+	Err          error      `json:"error,omitempty"`
+}

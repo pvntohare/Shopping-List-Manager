@@ -147,6 +147,19 @@ func processCreateItemRequest(ctx context.Context, db *sql.DB, req *api.CreateIt
 		return sessionToken, errors.New("unauthorised access, user does not have permission to edit the list")
 	}
 
+	//check if the list status
+	var listStatus string
+	err = db.QueryRow("select status from list where id=?", req.Item.ListID).Scan(&listStatus)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return sessionToken, errors.New("the mentioned list does not exist")
+		}
+		return sessionToken, errors.Wrapf(err, "error checking list status")
+	}
+	if strings.Compare(listStatus, "todo") != 0 {
+		return sessionToken, errors.New(fmt.Sprintf("list status:%v should be todo", listStatus))
+	}
+
 	// Check if item category already exists in our DB
 	// add it to DB if does not already exist
 	if req.Item.Category.ID == 0 {
@@ -326,4 +339,28 @@ func processShareListRequest(ctx context.Context, db *sql.DB, req *api.ShareList
 	}
 
 	return sessionToken, nil
+}
+
+func processGetAllCategoriesRequest(ctx context.Context, db *sql.DB, req *api.GetAllCategoriesRequest) ([]api.Category, string, error) {
+	var categories []api.Category
+	// Refresh user session
+	var uc api.UserContext
+	uc.UserID = req.UserID
+	uc.SessionToken = req.SessionToken
+	sessionToken, err := api.RefreshSessionContext(uc)
+	if err != nil {
+		return categories, req.SessionToken, nil
+	}
+
+	resp, err := db.Query("select id, name, type from category")
+	if err != nil {
+		return categories, sessionToken, errors.Wrapf(err, "failed to read categories from system")
+	}
+	defer resp.Close()
+	for resp.Next() {
+		var category api.Category
+		resp.Scan(&category.ID, &category.Name, &category.Type)
+		categories = append(categories, category)
+	}
+	return categories, sessionToken, nil
 }

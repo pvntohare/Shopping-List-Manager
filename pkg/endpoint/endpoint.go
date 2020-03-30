@@ -9,16 +9,17 @@ import (
 )
 
 type Endpoints struct {
-	Ping         endpoint.Endpoint
-	Signup       endpoint.Endpoint
-	Login        endpoint.Endpoint
-	CreateList   endpoint.Endpoint
-	GetLists     endpoint.Endpoint
-	CreateItem   endpoint.Endpoint
-	GetListItems endpoint.Endpoint
-	BuyItem      endpoint.Endpoint
-	ShareList    endpoint.Endpoint
-	Logout       endpoint.Endpoint
+	Ping             endpoint.Endpoint
+	Signup           endpoint.Endpoint
+	Login            endpoint.Endpoint
+	CreateList       endpoint.Endpoint
+	GetLists         endpoint.Endpoint
+	CreateItem       endpoint.Endpoint
+	GetListItems     endpoint.Endpoint
+	BuyItem          endpoint.Endpoint
+	ShareList        endpoint.Endpoint
+	Logout           endpoint.Endpoint
+	GetAllCategories endpoint.Endpoint
 }
 
 func New(s service.Service, logger log.Logger) Endpoints {
@@ -81,17 +82,24 @@ func New(s service.Service, logger log.Logger) Endpoints {
 		shareListEndpoint = LoggingMiddleware(log.With(logger, "method", "ShareList"))(shareListEndpoint)
 	}
 
+	var getAllCategoriesEndpoint endpoint.Endpoint
+	{
+		getAllCategoriesEndpoint = MakeGetAllCategoriesEndpoint(s)
+		getAllCategoriesEndpoint = LoggingMiddleware(log.With(logger, "method", "GetAllCategories"))(getAllCategoriesEndpoint)
+	}
+
 	return Endpoints{
-		Ping:         pingEndpoint,
-		Signup:       singupEndpoint,
-		Login:        loginEndpoint,
-		CreateList:   createListEndpoint,
-		GetLists:     getListsEndpoint,
-		CreateItem:   createItemEndpoint,
-		GetListItems: getListItemsEndpoint,
-		BuyItem:      buyItemEndpoint,
-		ShareList:    shareListEndpoint,
-		Logout:       logoutEndpoint,
+		Ping:             pingEndpoint,
+		Signup:           singupEndpoint,
+		Login:            loginEndpoint,
+		CreateList:       createListEndpoint,
+		GetLists:         getListsEndpoint,
+		CreateItem:       createItemEndpoint,
+		GetListItems:     getListItemsEndpoint,
+		BuyItem:          buyItemEndpoint,
+		ShareList:        shareListEndpoint,
+		Logout:           logoutEndpoint,
+		GetAllCategories: getAllCategoriesEndpoint,
 	}
 }
 
@@ -162,5 +170,12 @@ func MakeShareListEndpoint(s service.Service) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(api.ShareListRequest)
 		return s.ShareList(ctx, req), nil
+	}
+}
+
+func MakeGetAllCategoriesEndpoint(s service.Service) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(api.GetAllCategoriesRequest)
+		return s.GetAllCategories(ctx, req), nil
 	}
 }

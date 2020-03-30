@@ -43,6 +43,7 @@ type Service interface {
 	GetListItems(ctx context.Context, req api.GetListItemsRequest) (resp api.GetListItemsResponse)
 	BuyItem(ctx context.Context, req api.BuyItemRequest) (resp api.BuyItemResponse)
 	ShareList(ctx context.Context, req api.ShareListRequest) (resp api.ShareListResponse)
+	GetAllCategories(ctx context.Context, req api.GetAllCategoriesRequest) (resp api.GetAllCategoriesResponse)
 }
 
 // New returns a basic Service with all of the expected middlewares wired in.
@@ -96,7 +97,7 @@ func (s basicService) Login(ctx context.Context, req api.LoginRequest) (resp api
 	}
 	st, err := processLoginRequest(ctx, s.db, &req)
 	if err != nil {
-		resp.Err = errors.Wrap(err, "failed to prcoess login service")
+		resp.Err = errors.Wrap(err, "failed to process login service")
 		return
 	}
 	resp.SessionToken = st
@@ -122,10 +123,11 @@ func (s basicService) CreateList(ctx context.Context, req api.CreateListRequest)
 		return
 	}
 	st, err := processCreateListRequest(ctx, s.db, &req)
+	resp.SessionToken = st
 	if err != nil {
 		resp.Err = errors.Wrap(err, "failed to process create list service")
+		return
 	}
-	resp.SessionToken = st
 	logger.Log("successfully_created_list :", req.List.Name)
 	return
 }
@@ -137,11 +139,12 @@ func (s basicService) GetLists(ctx context.Context, req api.GetListsRequest) (re
 		resp.Err = errors.Wrapf(err, "request validation failed for get lists service")
 	}
 	lists, st, err := processGetListsRequest(ctx, s.db, &req)
+	resp.SessionToken = st
 	if err != nil {
 		resp.Err = errors.Wrapf(err, "failed to process get lists service")
+		return
 	}
 	resp.Lists = lists
-	resp.SessionToken = st
 	logger.Log("successfully_got_lists_for_user : ", req.UserID)
 	return
 }
@@ -153,10 +156,11 @@ func (s basicService) CreateItem(ctx context.Context, req api.CreateItemRequest)
 		resp.Err = errors.Wrapf(err, "request validation failed for create item service")
 	}
 	st, err := processCreateItemRequest(ctx, s.db, &req)
+	resp.SessionToken = st
 	if err != nil {
 		resp.Err = errors.Wrapf(err, "failed to process create item service")
+		return
 	}
-	resp.SessionToken = st
 	logger.Log("successfully_created_item :", req.Item.Title)
 	return
 }
@@ -168,11 +172,12 @@ func (s basicService) GetListItems(ctx context.Context, req api.GetListItemsRequ
 		resp.Err = errors.Wrapf(err, "request validation failed for get list items service")
 	}
 	items, st, err := processGetListItemsRequest(ctx, s.db, &req)
+	resp.SessionToken = st
 	if err != nil {
 		resp.Err = errors.Wrapf(err, "failed to process get list items service")
+		return
 	}
 	resp.Items = items
-	resp.SessionToken = st
 	logger.Log("successfully_returned_items_for_list :", req.ListID)
 	return
 }
@@ -184,10 +189,11 @@ func (s basicService) BuyItem(ctx context.Context, req api.BuyItemRequest) (resp
 		resp.Err = errors.Wrapf(err, "request validation failed for buy item service")
 	}
 	st, err := processBuyItemRequest(ctx, s.db, &req)
+	resp.SessionToken = st
 	if err != nil {
 		resp.Err = errors.Wrapf(err, "failed to process get list items service")
+		return
 	}
-	resp.SessionToken = st
 	logger.Log("successfully_marked_item_as_bought :", req.ItemID)
 	return
 }
@@ -199,10 +205,22 @@ func (s basicService) ShareList(ctx context.Context, req api.ShareListRequest) (
 		resp.Err = errors.Wrapf(err, "request validation failed for share list service")
 	}
 	st, err := processShareListRequest(ctx, s.db, &req)
+	resp.SessionToken = st
 	if err != nil {
 		resp.Err = errors.Wrapf(err, "failed to process share list service")
+		return
 	}
-	resp.SessionToken = st
 	logger.Log("successfully_shared_list :", req.ListID)
+	return
+}
+
+func (s basicService) GetAllCategories(ctx context.Context, req api.GetAllCategoriesRequest) (resp api.GetAllCategoriesResponse) {
+	categories, st, err := processGetAllCategoriesRequest(ctx, s.db, &req)
+	resp.SessionToken = st
+	if err != nil {
+		resp.Err = errors.Wrapf(err, "failed to process get all categories service")
+		return
+	}
+	resp.Categories = categories
 	return
 }

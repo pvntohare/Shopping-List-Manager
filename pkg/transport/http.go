@@ -238,6 +238,29 @@ const (
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	ShareListURL = "/share"
+
+	// swagger:operation GET /categories categories GetAllCategoriesRequest
+	//
+	// Get a list of all registered categories
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	// - name: GetAllCategoriesRequest
+	//   in: body
+	//   description: get list of all categories
+	//   required: true
+	//   schema:
+	//     "$ref": "#/definitions/GetAllCategoriesRequest"
+	// responses:
+	//   "200":
+	//     "$ref": "#/responses/GetAllCategoriesResponse"
+	//   "400":
+	//     "$ref": "#/responses/ServiceError"
+	//   "500":
+	//     "$ref": "#/responses/ServiceError"
+	CategoriesURL = "/categories"
 )
 
 func commonHTTPMiddleware(next http.Handler) http.Handler {
@@ -311,6 +334,12 @@ func NewHTTPHandler(endpoints endpoint.Endpoints, logger log.Logger) http.Handle
 	r.Methods("POST").Path(ShareListURL).Handler(httptransport.NewServer(
 		endpoints.ShareList,
 		decodeHTTPShareListRequest,
+		encodeResponse,
+	))
+
+	r.Methods("GET").Path(CategoriesURL).Handler(httptransport.NewServer(
+		endpoints.GetAllCategories,
+		decodeHTTPGetAllCategoriesRequest,
 		encodeResponse,
 	))
 
@@ -466,6 +495,20 @@ func decodeHTTPShareListRequest(ctx context.Context, r *http.Request) (interface
 	return req, nil
 }
 
+// decodeHTTPGetAllCategoriesRequest is a transport/http.DecodeRequestFunc that decodes a
+// JSON-encoded share list request from the HTTP request body. Primarily useful in a
+// server.
+func decodeHTTPGetAllCategoriesRequest(ctx context.Context, r *http.Request) (interface{}, error) {
+	var req api.GetAllCategoriesRequest
+	uc, err := api.GetUserContextFromSession(r)
+	if err != nil {
+		return nil, errors.Wrap(err, "unauthorised access,could not read userid from cache")
+	}
+	req.UserID = uc.UserID
+	req.SessionToken = uc.SessionToken
+	return req, nil
+}
+
 func getErrorInfo(err error) (int, string, string) {
 	httpStatus := http.StatusInternalServerError
 	if strings.Contains(err.Error(), "unauthorised access") {
@@ -556,6 +599,15 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return json.NewEncoder(w).Encode(resp)
 	case api.ShareListResponse:
 		resp := response.(api.ShareListResponse)
+		http.SetCookie(w, &http.Cookie{
+			Name:    "session_token",
+			Value:   resp.SessionToken,
+			Expires: time.Now().Add(120 * time.Second),
+		})
+		resp.SessionToken = ""
+		return json.NewEncoder(w).Encode(resp)
+	case api.GetAllCategoriesResponse:
+		resp := response.(api.GetAllCategoriesResponse)
 		http.SetCookie(w, &http.Cookie{
 			Name:    "session_token",
 			Value:   resp.SessionToken,
