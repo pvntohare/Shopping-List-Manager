@@ -212,7 +212,7 @@ type GetAllCategoriesRequest struct {
 }
 
 // GetAllCategoriesResponse represents the response struct returned by GET categoriesAPI
-// swagger: response GetAllCategoriesResponse
+// swagger:response GetAllCategoriesResponse
 type GetAllCategoriesResponse struct {
 	SessionToken string
 	Categories   []Category `json:"categories"`
@@ -229,7 +229,7 @@ type DeleteListRequest struct {
 }
 
 // DeleteListResponse represents the response struct returned by POST deletelistAPI
-// swagger: response DeleteListResponse
+// swagger:response DeleteListResponse
 type DeleteListResponse struct {
 	SessionToken string
 	Err          error `json:error,omitempty`
@@ -245,7 +245,7 @@ type DeleteItemRequest struct {
 }
 
 // DeleteItemResponse represents the response struct returned by POST deleteitemAPI
-// swagger: response DeleteItemResponse
+// swagger:response DeleteItemResponse
 type DeleteItemResponse struct {
 	SessionToken string
 	Err          error `json:error,omitempty`

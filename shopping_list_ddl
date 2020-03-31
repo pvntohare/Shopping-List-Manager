@@ -1,0 +1,145 @@
+-- MySQL dump 10.13  Distrib 5.7.29, for osx10.14 (x86_64)
+--
+-- Host: localhost    Database: shoppinglist_test
+-- ------------------------------------------------------
+-- Server version	5.7.29
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `category`
+--
+
+DROP TABLE IF EXISTS `category`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `category` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `type` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `item`
+--
+
+DROP TABLE IF EXISTS `item`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `item` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `list` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `status` enum('todo','deleted','bought') NOT NULL,
+  `category` int(11) NOT NULL,
+  `created_by` int(11) NOT NULL,
+  `last_modified_by` int(11) NOT NULL,
+  `bought_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `bought_at` timestamp NULL DEFAULT NULL,
+  `deadline` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `list` (`list`),
+  KEY `category` (`category`),
+  KEY `created_by` (`created_by`),
+  KEY `last_modified_by` (`last_modified_by`),
+  KEY `bought_by` (`bought_by`),
+  CONSTRAINT `item_ibfk_1` FOREIGN KEY (`list`) REFERENCES `list` (`id`),
+  CONSTRAINT `item_ibfk_2` FOREIGN KEY (`category`) REFERENCES `category` (`id`),
+  CONSTRAINT `item_ibfk_3` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `item_ibfk_4` FOREIGN KEY (`last_modified_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `item_ibfk_5` FOREIGN KEY (`bought_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `list`
+--
+
+DROP TABLE IF EXISTS `list`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `list` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `owner` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_modified_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deadline` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` enum('todo','deleted','bought') DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `owner` (`owner`),
+  CONSTRAINT `list_ibfk_1` FOREIGN KEY (`owner`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `list_contributer`
+--
+
+DROP TABLE IF EXISTS `list_contributer`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `list_contributer` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `list` int(11) NOT NULL,
+  `user` int(11) NOT NULL,
+  `access_type` enum('read_only','edit') NOT NULL,
+  `valid_until` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `list` (`list`),
+  KEY `user` (`user`),
+  CONSTRAINT `list_contributer_ibfk_1` FOREIGN KEY (`user`) REFERENCES `users` (`id`),
+  CONSTRAINT `list_contributer_ibfk_2` FOREIGN KEY (`user`) REFERENCES `users` (`id`),
+  CONSTRAINT `list_contributer_ibfk_3` FOREIGN KEY (`list`) REFERENCES `list` (`id`),
+  CONSTRAINT `list_contributer_ibfk_4` FOREIGN KEY (`user`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `users`
+--
+
+DROP TABLE IF EXISTS `users`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `username` varchar(255) NOT NULL,
+  `full_name` varchar(255) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `password` varchar(255) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_logged_in_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `status` enum('active','inactive') NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `username` (`username`),
+  KEY `users_index_0` (`username`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2020-03-31 11:53:40

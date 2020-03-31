@@ -385,7 +385,7 @@ func processShareListRequest(ctx context.Context, db *sqlx.DB, req *api.ShareLis
 	}
 	// check if the current user is owner of the list to be shared
 	var owner int64
-	err = tx.Get(&owner,"select owner from list where id=?", req.ListID)
+	err = tx.Get(&owner, "select owner from list where id=?", req.ListID)
 	if err != nil {
 		tx.Rollback()
 		if err == sql.ErrNoRows {
@@ -400,7 +400,7 @@ func processShareListRequest(ctx context.Context, db *sqlx.DB, req *api.ShareLis
 
 	// share the list
 	var uid int64
-	err = tx.Get(&uid,"select id from users where username=?", req.UserName)
+	err = tx.Get(&uid, "select id from users where username=?", req.UserName)
 	if err != nil {
 		tx.Rollback()
 		if err == sql.ErrNoRows {

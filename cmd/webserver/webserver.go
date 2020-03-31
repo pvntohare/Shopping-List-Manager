@@ -24,12 +24,14 @@ import (
 var (
 	debugPort   string
 	port        string
+	dbName      string
 	serviceName = "Shopping-List"
 )
 
 func init() {
 	flag.StringVar(&port, "port", "8000", "specify port to run this server on")
 	flag.StringVar(&debugPort, "debug_port", "8080", "specify port to run debug server on")
+	flag.StringVar(&dbName, "db_name", "shopping_list", "specify database name")
 }
 
 func initCache() {
@@ -101,7 +103,8 @@ func newWebServer(addr string, debugAddr string) {
 	}
 
 	//open a database connection
-	db, err := sqlx.Open("mysql", "root:root@/shoppinglist_test?parseTime=true")
+	dataSourceName := fmt.Sprintf("root:root@/%s?parseTime=true", dbName)
+	db, err := sqlx.Open("mysql", dataSourceName)
 	if err != nil {
 		logger.Log("failed to open database connection with err: ", err)
 	}
