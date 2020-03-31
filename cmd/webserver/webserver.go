@@ -1,3 +1,19 @@
+// Shopping List API service
+//
+// APIs provided by shopping list application
+//
+//     Schemes: http, https
+//     Host: localhost:3000
+//     Version: 0.1.0
+//     basePath: /api
+//
+//     Consumes:
+//     - application/json
+//
+//     Produces:
+//     - application/json
+//
+// swagger:meta
 package main
 
 import (

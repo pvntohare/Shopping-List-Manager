@@ -7,15 +7,23 @@ import (
 
 var Cache redis.Conn
 
+// Category identifies a category with different given properties
+// swagger:model
 type Category struct {
 	ID   int64  `json:"id" db:"id"`
 	Name string `json:"name" db:"name"`
 	Type string `json:"type" db:"type"`
 }
+
+// User identifies a user with different given properties
+// swagger:model
 type User struct {
 	UserID   int64  `json:"user_id"`
 	UserName string `json:"user_name"`
 }
+
+// List identifies a list with different given properties
+// swagger:model
 type List struct {
 	ID             int64     `json:"list_id"`
 	Name           string    `json:"name"`
@@ -29,6 +37,8 @@ type List struct {
 	CreatedByMe    bool      `json:"created_by_me,omitempty"`
 }
 
+// Item identifies an item with different given properties
+// swagger:model
 type Item struct {
 	ID             int64     `json:"id"`
 	ListID         int64     `json:"list_id"`
@@ -51,7 +61,7 @@ type PingRequest struct {
 	//none
 }
 
-// PingResponse is the response of pingAPI
+// PingResponse is the response of PingRequest
 // swagger:response PingResponse
 type PingResponse struct {
 	Err error `json:"error,omitempty"`
@@ -129,11 +139,12 @@ type GetListsRequest struct {
 }
 
 // GetListsResponse represents the response struct returned by GET listAPI
-// swagger:response GetListsResponse
+// swagger:model
 type GetListsResponse struct {
 	SessionToken string
-	Lists        []List `json:"lists"`
-	Err          error  `json:"error,omitempty"`
+	// List represents individual list
+	Lists []List `json:"lists"`
+	Err   error  `json:"error,omitempty"`
 }
 
 // CreateItemRequest is request schema for creating new item
@@ -160,12 +171,13 @@ type GetListItemsRequest struct {
 	ListID       int64 `json:"list_id"`
 }
 
-// GetListsResponse represents the response struct returned by GET itemAPI
-// swagger:response GetListItemsResponse
+// GetListItemsResponse represents the response struct returned by GET itemAPI
+// swagger:model
 type GetListItemsResponse struct {
 	SessionToken string
-	Items        []Item `json:"items"`
-	Err          error  `json:"error,omitempty"`
+	// Item represents individual item
+	Items []Item `json:"items"`
+	Err   error  `json:"error,omitempty"`
 }
 
 // BuyItemRequest is request schema for buy item
@@ -212,16 +224,16 @@ type GetAllCategoriesRequest struct {
 }
 
 // GetAllCategoriesResponse represents the response struct returned by GET categoriesAPI
-// swagger:response GetAllCategoriesResponse
+// swagger:model
 type GetAllCategoriesResponse struct {
 	SessionToken string
-	Categories   []Category `json:"categories"`
-	Err          error      `json:"error,omitempty"`
+	// Category represents individual category
+	Categories []Category `json:"categories"`
+	Err        error      `json:"error,omitempty"`
 }
 
 // DeleteListRequest is request schema for delete list
 // It will mark given list as deleted
-// swagger:model
 type DeleteListRequest struct {
 	SessionToken string
 	UserID       int64
@@ -237,7 +249,6 @@ type DeleteListResponse struct {
 
 // DeleteItemRequest is request schema for delete item in list
 // It will mark given item as deleted
-// swagger:model
 type DeleteItemRequest struct {
 	SessionToken string
 	UserID       int64

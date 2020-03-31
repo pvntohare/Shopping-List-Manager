@@ -19,21 +19,20 @@ import (
 
 // Api resource locators
 const (
-	// swagger:operation GET /ping ping PingReq
+	// swagger:operation GET /ping PingRequest
 	//
 	// Api for checking status of the service
-	//
 	// ---
 	// produces:
 	// - application/json
 	// responses:
 	//   "200":
-	//     "$ref": "#/responses/PingRes"
+	//     "$ref": "#/responses/PingResponse"
 	//   "500":
 	//     description: StatusInternalServerError
 	PingURL = "/ping"
 
-	// swagger:operation POST /signup singup SingupRequest
+	// swagger:operation POST /signup SingupRequest
 	//
 	// Enrolls a new user in the system
 	//
@@ -56,7 +55,7 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	SignupURL = "/signup"
 
-	// swagger:operation POST /login login LoginRequest
+	// swagger:operation POST /login LoginRequest
 	//
 	// Logs in a registered user
 	//
@@ -79,7 +78,7 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	LoginURL = "/login"
 
-	// swagger:operation POST /logout logout LogoutRequest
+	// swagger:operation POST /logout LogoutRequest
 	//
 	// Logs out a logged in user
 	//
@@ -102,7 +101,7 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	LogoutURL = "/logout"
 
-	// swagger:operation POST /list list CreateListRequest
+	// swagger:operation POST /list CreateListRequest
 	//
 	// Creates a new shopping list for logged in user
 	//
@@ -125,7 +124,7 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	CreateListURL = "/list"
 
-	// swagger:operation GET /list list GetListsRequest
+	// swagger:operation GET /list GetListsRequest
 	//
 	// Returns all list associated with logged in user
 	//
@@ -141,14 +140,14 @@ const (
 	//     "$ref": "#/definitions/GetListsRequest"
 	// responses:
 	//   "200":
-	//     "$ref": "#/responses/GetListsResponse"
+	//     "$ref": "#/definitions/GetListsResponse"
 	//   "400":
 	//     "$ref": "#/responses/ServiceError"
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	GetListsURL = "/list"
 
-	// swagger:operation POST /item item CreateItemRequest
+	// swagger:operation POST /item CreateItemRequest
 	//
 	// Creates an item in given shopping list
 	//
@@ -171,7 +170,7 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	CreateItemURL = "/item"
 
-	// swagger:operation GET /item item GetListItemsRequest
+	// swagger:operation GET /item GetListItemsRequest
 	//
 	// Returns all items of a list associated with logged in user
 	//
@@ -187,14 +186,14 @@ const (
 	//     "$ref": "#/definitions/GetListItemsRequest"
 	// responses:
 	//   "200":
-	//     "$ref": "#/responses/GetListItemsResponse"
+	//     "$ref": "#/definitions/GetListItemsResponse"
 	//   "400":
 	//     "$ref": "#/responses/ServiceError"
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	GetListItemsURL = "/item"
 
-	// swagger:operation POST /buy buy BuyItemRequest
+	// swagger:operation POST /buy BuyItemRequest
 	//
 	// Mark an item as bought by given user
 	//
@@ -210,14 +209,14 @@ const (
 	//     "$ref": "#/definitions/BuyItemRequest"
 	// responses:
 	//   "200":
-	//     "$ref": "#/responses/buyItemResponse"
+	//     "$ref": "#/responses/BuyItemResponse"
 	//   "400":
 	//     "$ref": "#/responses/ServiceError"
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	BuyItemURL = "/buy"
 
-	// swagger:operation POST /share share ShareListRequest
+	// swagger:operation POST /share ShareListRequest
 	//
 	// Share a list with given user
 	//
@@ -240,7 +239,7 @@ const (
 	//     "$ref": "#/responses/ServiceError"
 	ShareListURL = "/share"
 
-	// swagger:operation GET /categories categories GetAllCategoriesRequest
+	// swagger:operation GET /categories GetAllCategoriesRequest
 	//
 	// Get a list of all registered categories
 	//
@@ -256,14 +255,14 @@ const (
 	//     "$ref": "#/definitions/GetAllCategoriesRequest"
 	// responses:
 	//   "200":
-	//     "$ref": "#/responses/GetAllCategoriesResponse"
+	//     "$ref": "#/definitions/GetAllCategoriesResponse"
 	//   "400":
 	//     "$ref": "#/responses/ServiceError"
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	CategoriesURL = "/categories"
 
-	// swagger:operation POST /delete/list/{lid} delete_list DeleteListRequest
+	// swagger:operation POST /delete/list/{lid}
 	//
 	// Mark given list as deleted
 	//
@@ -271,22 +270,22 @@ const (
 	// produces:
 	// - application/json
 	// parameters:
-	// - name: DeleteListRequest
-	//   in: body
+	// - name: lid
+	//   in: path
 	//   description: mark given list as deleted
 	//   required: true
-	//   schema:
-	//     "$ref": "#/definitions/DeleteListRequest"
 	// responses:
-	//   "200":
-	//     "$ref": "#/responses/DeleteListResponse"
+	//   200:
+	//     description: successful operation
+	//     schema:
+	//     	"$ref": "#/responses/DeleteListResponse"
 	//   "400":
 	//     "$ref": "#/responses/ServiceError"
 	//   "500":
 	//     "$ref": "#/responses/ServiceError"
 	DeleteListURL = "/delete/list/{lid}"
 
-	// swagger:operation POST /delete/item/{iid} delete_item DeleteItemRequest
+	// swagger:operation POST /delete/item/{iid}
 	//
 	// Mark given item as deleted
 	//
@@ -294,12 +293,10 @@ const (
 	// produces:
 	// - application/json
 	// parameters:
-	// - name: DeleteItemRequest
-	//   in: body
+	// - name: iid
+	//   in: path
 	//   description: mark given item as deleted
 	//   required: true
-	//   schema:
-	//     "$ref": "#/definitions/DeleteItemRequest"
 	// responses:
 	//   "200":
 	//     "$ref": "#/responses/DeleteItemResponse"
@@ -619,6 +616,7 @@ func getErrorInfo(err error) (int, string, string) {
 
 }
 
+// ServiceError is error struct
 // swagger:response ServiceError
 type ServiceError struct {
 	// HTTP Error Codes
